@@ -2,7 +2,7 @@
 
 Ứng dụng web tiếng Việt sử dụng toàn bộ **177 Scientific Agent Skills v2.72.0**. Xây bằng Next.js, TypeScript và React. Có cấu hình triển khai Vercel, CI và kiểm tra tính toàn vẹn của từng file nguồn.
 
-[Triển khai trên Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmrbit4578%2Fnghiencuu-khoahoc-agent) · [Báo cáo audit](docs/AUDIT.md) · [Hướng dẫn triển khai](docs/DEPLOY.md) · [Phạm vi chức năng](docs/FEATURES.md)
+[Triển khai trên Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmrbit4578%2Fagent-nghiencuu-2026) · [Báo cáo audit](docs/AUDIT.md) · [Hướng dẫn triển khai](docs/DEPLOY.md) · [Phạm vi chức năng](docs/FEATURES.md)
 
 ## Chạy ngay
 

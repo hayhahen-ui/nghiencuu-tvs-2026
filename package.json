@@ -1,17 +1,18 @@
 {
-  "name": "nghiencuu-khoahoc-agent",
+  "name": "agent-nghiencuu-2026",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
-    "prebuild": "node scripts/build-catalog.mjs",
+    "prebuild": "node scripts/prepare-app.mjs",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "catalog": "node scripts/build-catalog.mjs",
     "prelocal": "npm run build",
-    "local": "next start --hostname 127.0.0.1 --port 3000"
+    "local": "next start --hostname 127.0.0.1 --port 3000",
+    "predev": "node scripts/prepare-document-assets.mjs"
   },
   "engines": {
     "node": "22.x"
@@ -24,7 +25,15 @@
     "remark-gfm": "^4.0.1",
     "lucide-react": "^0.468.0",
     "papaparse": "^5.5.3",
-    "zod": "^4.0.0"
+    "zod": "^4.0.0",
+    "pdfjs-dist": "6.4.299",
+    "tesseract.js": "7.0.0",
+    "fast-xml-parser": "5.11.2",
+    "word-extractor": "1.0.4",
+    "@tesseract.js-data/vie": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
@@ -33,7 +42,6 @@
     "@types/react-dom": "^19.2.0",
     "@types/papaparse": "^5.3.16",
     "tsx": "^4.20.0",
-    "yaml": "^2.8.0",
-    "fflate": "^0.8.2"
+    "yaml": "^2.8.0"
   }
 }

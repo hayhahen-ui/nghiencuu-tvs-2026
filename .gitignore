@@ -17,3 +17,7 @@ __pycache__/
 .venv/
 audit/runtime-logs/
 audit/screenshots/
+
+/public/document-assets/
+
+/tmp/

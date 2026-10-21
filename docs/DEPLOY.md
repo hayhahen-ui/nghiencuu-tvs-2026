@@ -3,7 +3,7 @@
 ## 1. Import repository
 
 1. Đăng nhập Vercel, chọn **Add New → Project → Import Git Repository**.
-2. Chọn `mrbit4578/nghiencuu-khoahoc-agent`.
+2. Chọn `mrbit4578/agent-nghiencuu-2026`.
 3. Root Directory: **gốc repository**, Framework: **Next.js**, Node.js: **22.x**.
 4. Install Command: `npm ci`. Build Command: `npm run build`. Output Directory: giữ mặc định của Next.js.
 5. Bấm Deploy. Bản không AI không yêu cầu bất kỳ secret nào.
