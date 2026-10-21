@@ -1,5 +1,5 @@
 import { strFromU8, unzipSync } from "fflate";
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { splitDocumentText, type DocumentUnit } from "./research-documents";
 
 type ReadUnit = Omit<DocumentUnit, "id">;
@@ -17,6 +17,7 @@ export function officeArchive(bytes: Uint8Array) {
 
 function xmlText(xml: string) {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("Không hỗ trợ XML có khai báo thực thể hoặc DTD.");
+  if (XMLValidator.validate(xml) !== true) throw new Error("XML trong file Word bị lỗi cấu trúc.");
   const parser = new XMLParser({ preserveOrder: true, ignoreAttributes: false, removeNSPrefix: true, trimValues: false, parseTagValue: false });
   const walk = (nodes: Record<string, unknown>[]): string => nodes.map((node) => {
     if ("#text" in node) return String(node["#text"]);
@@ -25,7 +26,8 @@ function xmlText(xml: string) {
       if (tag === "tab") return "\t";
       if (tag === "br" || tag === "cr") return "\n";
       const content = Array.isArray(children) ? walk(children as Record<string, unknown>[]) : "";
-      return content + (["p", "tr"].includes(tag) ? "\n" : tag === "tc" ? "\t" : "");
+      if (tag === "tc") return content.trim().replace(/\n+/g, " / ") + "\t";
+      return content + (["p", "tr"].includes(tag) ? "\n" : "");
     }).join("");
   }).join("");
   return walk(parser.parse(xml)).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();

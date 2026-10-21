@@ -77,6 +77,7 @@ export async function readResearchFile(file: File, options: ReadOptions = {}): P
         for (let number = 1; number <= unitCount; number++) {
           checkAbort(options);
           options.onProgress?.(`Đọc trang ${number}/${unitCount}…`);
+          let fallbackText = "";
           try {
             const page = await pdf.getPage(number);
             const content = await page.getTextContent();
@@ -84,6 +85,7 @@ export async function readResearchFile(file: File, options: ReadOptions = {}): P
             const annotations = await page.getAnnotations();
             const fields = annotations.map((a) => a.fieldValue ? `${a.fieldName || "Trường biểu mẫu"}: ${String(a.fieldValue)}` : "").filter(Boolean);
             if (fields.length) text += "\n" + fields.join("\n");
+            fallbackText = text;
             const needOcr = options.ocrAllPages || text.replace(/\s/g, "").length < 80 || (text.match(/�/g)?.length || 0) > text.length * .08;
             if (needOcr) {
               const viewport = page.getViewport({ scale: 2.2 });
@@ -112,8 +114,8 @@ export async function readResearchFile(file: File, options: ReadOptions = {}): P
             checkAbort(options);
             const message = error instanceof Error ? error.message : "Lỗi đọc trang";
             if (/vượt 2 triệu/.test(message)) throw error;
-            warnings.push(`Trang ${number} chưa đọc được: ${message.slice(0, 200)}`);
-            append(splitDocumentText("", `Trang ${number} (chưa đọc được)`));
+            warnings.push(`Trang ${number} chưa đọc đầy đủ: ${message.slice(0, 200)}${fallbackText.trim() ? "; đã giữ lại lớp chữ PDF" : ""}`);
+            append(splitDocumentText(fallbackText, `Trang ${number}${fallbackText.trim() ? " (chưa OCR được phần ảnh)" : " (chưa đọc được)"}`));
           }
         }
         warnings.push("Hình vẽ, cấu trúc hóa học, ký hiệu nguy hại và bố cục bảng cần đối chiếu PDF gốc. Có thể chọn OCR toàn bộ khi chữ nằm trong ảnh xen kẽ.");

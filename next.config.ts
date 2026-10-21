@@ -12,13 +12,14 @@ const config: NextConfig = {
     const isDevelopment = process.env.NODE_ENV === "development";
     // React's development stack reconstruction requires eval. Production
     // deliberately excludes it; only local HMR needs the WebSocket origins.
-    const scriptSources = ["'self'", "'unsafe-inline'", ...(isDevelopment ? ["'unsafe-eval'"] : [])];
+    const scriptSources = ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'", ...(isDevelopment ? ["'unsafe-eval'"] : [])];
     const connectSources = ["'self'", ...(isDevelopment ? ["ws://localhost:*", "ws://127.0.0.1:*"] : [])];
     const contentSecurityPolicy = [
       "default-src 'self'",
       `script-src ${scriptSources.join(" ")}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https:",
+      "img-src 'self' data: blob: https:",
+      "worker-src 'self'",
       `connect-src ${connectSources.join(" ")}`,
       "font-src 'self'",
       "frame-ancestors 'none'",

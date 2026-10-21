@@ -51,6 +51,9 @@ import { selectSkills, selectionState } from "@/lib/skill-selection";
 import type { SkillContextInfo } from "@/lib/chat-context";
 import { projectsSchema } from "@/lib/projects";
 import type { Catalog, Paper, Project, Skill } from "@/lib/types";
+import ResearchSources, { SourcePreview, type SourceLocation } from "./research-sources";
+import { loadDocuments } from "@/lib/document-store";
+import { selectDocumentEvidence, type StoredDocument, type EvidenceReceipt } from "@/lib/research-documents";
 
 const scienceIcons: Record<string, typeof Microscope> = {
   flask: FlaskConical, dna: Dna, atom: Atom, earth: Earth, heart: HeartPulse,
@@ -118,10 +121,12 @@ function Markdown({
   text,
   file = "",
   openFile,
+  openSource,
 }: {
   text: string;
   file?: string;
   openFile?: (f: string) => void;
+  openSource?: (location: SourceLocation) => void;
 }) {
   return (
     <div className="markdown">
@@ -141,6 +146,12 @@ function Markdown({
                 target={url.startsWith("https:") ? "_blank" : undefined}
                 rel="noopener noreferrer"
                 onClick={(e) => {
+                  if (url.startsWith("#source/") && openSource) {
+                    e.preventDefault();
+                    const [, documentId, unitId] = url.split("/");
+                    openSource({ documentId, unitId });
+                    return;
+                  }
                   if (
                     url.startsWith("/library/") &&
                     /\.md(?:#.*)?$/.test(url) &&
@@ -211,8 +222,12 @@ export default function Workspace() {
   const [paperBusy, setPaperBusy] = useState(false);
   const [paperError, setPaperError] = useState("");
   const [chat, setChat] = useState<
-    { role: "user" | "assistant"; content: string }[]
+    { role: "user" | "assistant"; content: string; evidence?: EvidenceReceipt }[]
   >([]);
+  const [sourceDocuments, setSourceDocuments] = useState<StoredDocument[]>([]);
+  const [enabledDocuments, setEnabledDocuments] = useState<string[]>([]);
+  const [sourceBusy, setSourceBusy] = useState(false);
+  const [sourceLocation, setSourceLocation] = useState<SourceLocation | null>(null);
   const [prompt, setPrompt] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [chatError, setChatError] = useState("");
@@ -245,6 +260,10 @@ export default function Workspace() {
     }
   };
   useEffect(() => {
+    loadDocuments().then((documents) => {
+      setSourceDocuments(documents);
+      setEnabledDocuments(documents.map((document) => document.id));
+    }).catch(() => setError("Không tải được tài liệu lưu trong trình duyệt. Các chức năng khác vẫn dùng được."));
     Promise.all([
       fetch("/catalog.json").then((r) => {
         if (!r.ok) throw Error("Không tải được thư viện.");
@@ -398,7 +417,7 @@ export default function Workspace() {
   };
   const sendChat = async (e: FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim() || chatBusy) return;
+    if (!prompt.trim() || chatBusy || sourceBusy) return;
     const next = [...chat, { role: "user" as const, content: prompt.trim() }];
     setChat(next);
     setPrompt("");
@@ -409,14 +428,15 @@ export default function Workspace() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: next,
+          messages: next.map(({ role, content }) => ({ role, content })),
           skills: selected,
           model: selectedModel || undefined,
+          documents: selectDocumentEvidence(sourceDocuments.filter((document) => enabledDocuments.includes(document.id)), next.slice(-4).filter((message) => message.role === "user").map((message) => message.content).join("\n")),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw Error(data.error);
-      setChat((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      setChat((prev) => [...prev, { role: "assistant", content: data.answer, evidence: data.evidence }]);
       setLastContext(data.context || null);
     } catch (e) {
       setChatError(e instanceof Error ? e.message : "Không thể gọi AI.");
@@ -1110,7 +1130,7 @@ export default function Workspace() {
                 <div className="eyebrow">YOUR RESEARCH COMPANION</div>
                 <h1>Trợ lý nghiên cứu</h1>
                 <p>
-                  Đối thoại với AI dựa trên tài liệu kỹ năng đã chọn. AI hỗ trợ
+                  Đối thoại với AI dựa trên kỹ năng và tài liệu anh tải lên. AI hỗ trợ
                   lập luận và viết mã; không tự thực thi Python.
                 </p>
               </div>
@@ -1141,6 +1161,8 @@ export default function Workspace() {
                   <span className="provider-pill">Đấu nối: {status.aiProvider}</span>
                 )}
               </div>
+              <ResearchSources documents={sourceDocuments} enabled={enabledDocuments} onDocuments={setSourceDocuments}
+                onEnabled={setEnabledDocuments} onView={setSourceLocation} onBusy={setSourceBusy} query={prompt || chat.filter((message) => message.role === "user").at(-1)?.content || ""} />
               <div className="chat-layout">
                 <div className="chat-main">
                   <div className="chat-messages" aria-live="polite">
@@ -1173,7 +1195,17 @@ export default function Workspace() {
                         <strong>
                           {m.role === "user" ? "Bạn" : "Research Agent"}
                         </strong>
-                        <Markdown text={m.content} />
+                        <Markdown text={m.content} openSource={(location) => {
+                          if (sourceDocuments.some((document) => document.id === location.documentId)) setSourceLocation(location);
+                          else setToast("Tài liệu nguồn đã được xóa hoặc không có trên trình duyệt này.");
+                        }} />
+                        {m.evidence && m.evidence.documents > 0 && <div className="answer-sources">
+                          <strong>Căn cứ đã gửi: {m.evidence.documents} file · {m.evidence.includedUnits}/{m.evidence.totalUnits} đoạn</strong>
+                          {m.evidence.sources.map((source) => <button className="text-button" key={source.id} onClick={() => {
+                            if (sourceDocuments.some((document) => document.id === source.id)) setSourceLocation({ documentId: source.id, unitId: source.units[0]?.id });
+                            else setToast("Tài liệu nguồn không còn trong thư viện của trình duyệt này.");
+                          }}>{source.name}</button>)}
+                        </div>}
                       </article>
                     ))}
                     {chatBusy && (
@@ -1218,11 +1250,12 @@ export default function Workspace() {
                           !status?.ai ||
                           !status.authenticated ||
                           chatBusy ||
+                          sourceBusy ||
                           !prompt.trim()
                         }
                       >
                         <Send size={16} />
-                        Gửi câu hỏi
+                        {sourceBusy ? "Đang đọc tài liệu…" : "Gửi câu hỏi"}
                       </button>
                     </div>
                   </form>
@@ -2022,6 +2055,8 @@ export default function Workspace() {
           </section>
         </div>
       )}
+      {sourceLocation && sourceDocuments.find((document) => document.id === sourceLocation.documentId) && <SourcePreview
+        document={sourceDocuments.find((document) => document.id === sourceLocation.documentId)!} location={sourceLocation} onClose={() => setSourceLocation(null)} />}
       {config && (
         <div className="modal-backdrop" onClick={() => setConfig(false)}>
           <section
