@@ -5,6 +5,7 @@ const config: NextConfig = {
     "/api/chat": [
       "./data/catalog.json",
       "./vendor/scientific-agent-skills/skills/*/SKILL.md",
+      "./public/library/skills/*/SKILL.md",
     ],
   },
   async headers() {

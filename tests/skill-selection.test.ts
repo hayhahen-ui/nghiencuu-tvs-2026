@@ -49,6 +49,13 @@ test("All selected skills reach AI context within the budget, including the last
   assert.ok(context.text.includes("# Instructions"));
 });
 
+test("Chat schema validates optional model name", () => {
+  const schema = createChatSchema(ids);
+  const messages = [{ role: "user" as const, content: "Test" }];
+  assert.equal(schema.parse({ messages, skills: [ids[0]], model: "deepseek-v4.1-flash" }).model, "deepseek-v4.1-flash");
+  assert.equal(schema.parse({ messages, skills: [ids[0]] }).model, undefined);
+});
+
 test("Short documents stay intact, no selection is supported, and read failures cannot silently omit a skill", async () => {
   const doc = "# Exact full document\nAll instructions remain available.";
   const context = await buildSkillContext(catalog.skills.slice(0, 2), async () => doc);

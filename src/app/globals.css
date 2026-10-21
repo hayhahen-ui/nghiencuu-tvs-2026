@@ -1110,6 +1110,56 @@ select {
   font-size: 10px;
   overflow-wrap: anywhere;
 }
+.model-selector-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.model-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.model-select {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.model-select:focus {
+  border-color: var(--accent);
+}
+.provider-pill {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: #e6f4ea;
+  color: #137333;
+  font-weight: 600;
+}
+.active-model-name {
+  padding: 4px 8px;
+  background: #f1f3f4;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
+}
 .chat-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 260px;

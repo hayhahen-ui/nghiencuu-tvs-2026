@@ -81,6 +81,7 @@ type Status = {
   ai: boolean;
   aiProvider?: string | null;
   aiModel?: string | null;
+  availableModels?: { id: string; name: string; provider?: string; tier?: string }[];
   authConfigured: boolean;
   authenticated: boolean;
   cloudStorage: boolean;
@@ -215,6 +216,7 @@ export default function Workspace() {
   const [prompt, setPrompt] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [chatError, setChatError] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const [lastContext, setLastContext] = useState<SkillContextInfo | null>(null);
   const [analysis, setAnalysis] = useState<ReturnType<typeof describe> | null>(
     null,
@@ -234,7 +236,13 @@ export default function Workspace() {
   const current = projects.find((p) => p.id === projectId);
   const refreshStatus = async () => {
     const r = await fetch("/api/status");
-    if (r.ok) setStatus(await r.json());
+    if (r.ok) {
+      const data: Status = await r.json();
+      setStatus(data);
+      if (data.aiModel) {
+        setSelectedModel((prev) => prev || data.aiModel || "");
+      }
+    }
   };
   useEffect(() => {
     Promise.all([
@@ -400,7 +408,11 @@ export default function Workspace() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, skills: selected }),
+        body: JSON.stringify({
+          messages: next,
+          skills: selected,
+          model: selectedModel || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw Error(data.error);
@@ -1101,6 +1113,33 @@ export default function Workspace() {
                   Đối thoại với AI dựa trên tài liệu kỹ năng đã chọn. AI hỗ trợ
                   lập luận và viết mã; không tự thực thi Python.
                 </p>
+              </div>
+              <div className="model-selector-bar">
+                <div className="model-badge">
+                  <Sparkles size={16} />
+                  <span>Mô hình AI:</span>
+                </div>
+                {status?.availableModels && status.availableModels.length > 0 ? (
+                  <select
+                    className="model-select"
+                    value={selectedModel || status?.aiModel || ""}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    aria-label="Chọn mô hình AI"
+                  >
+                    {status.availableModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} {m.tier === "free" ? "★ Free" : ""} ({m.provider || "AI"})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <code className="active-model-name">
+                    {selectedModel || status?.aiModel || "deepseek-v4.1-flash"}
+                  </code>
+                )}
+                {status?.aiProvider && (
+                  <span className="provider-pill">Đấu nối: {status.aiProvider}</span>
+                )}
               </div>
               <div className="chat-layout">
                 <div className="chat-main">

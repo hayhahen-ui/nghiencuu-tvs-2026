@@ -37,15 +37,32 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     const chosen = new Set(input.skills);
+    const loadSkill = async (id: string) => {
+      try {
+        return await readFile(
+          path.join(process.cwd(), "vendor/scientific-agent-skills/skills", id, "SKILL.md"),
+          "utf8",
+        );
+      } catch {
+        return await readFile(
+          path.join(process.cwd(), "public/library/skills", id, "SKILL.md"),
+          "utf8",
+        );
+      }
+    };
     const context = await buildSkillContext(
       catalog.skills.filter((skill) => chosen.has(skill.id)),
-      (id) => readFile(path.join(process.cwd(), "vendor/scientific-agent-skills/skills", id, "SKILL.md"), "utf8"),
+      loadSkill,
     );
     const base = new URL(
       process.env.AI_BASE_URL || "https://api.openai.com/v1",
     );
     if (base.protocol !== "https:")
       throw new Error("AI base URL requires HTTPS");
+    const targetModel =
+      input.model && /^[a-zA-Z0-9_.-]+$/.test(input.model)
+        ? input.model
+        : process.env.AI_MODEL || "deepseek-v4.1-flash";
     const res = await fetch(
       `${base.href.replace(/\/$/, "")}/chat/completions`,
       {
@@ -53,9 +70,10 @@ export async function POST(request: Request) {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.AI_API_KEY}`,
+          "User-Agent": "ResearchAgent/1.0 (Next.js; Vercel)",
         },
         body: JSON.stringify({
-          model: process.env.AI_MODEL || "gpt-4.1-mini",
+          model: targetModel,
           messages: [
             {
               role: "system",
@@ -65,7 +83,7 @@ export async function POST(request: Request) {
             },
             ...input.messages,
           ],
-          max_tokens: 3000,
+          max_tokens: 4000,
         }),
         signal: AbortSignal.timeout(50000),
       },
@@ -78,10 +96,22 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     const data = await res.json();
-    const answer = data?.choices?.[0]?.message?.content;
-    if (typeof answer !== "string" || !answer.trim())
-      throw new Error("Empty AI response");
-    return Response.json({ answer, skills: input.skills, context: context.info });
+    const choice = data?.choices?.[0];
+    let answer = choice?.message?.content;
+    const reasoning = choice?.message?.reasoning_content;
+    if (typeof answer !== "string" || !answer.trim()) {
+      if (typeof reasoning === "string" && reasoning.trim()) {
+        answer = `*Suy luận từ mô hình:*\n\n${reasoning}`;
+      } else {
+        throw new Error("Empty AI response");
+      }
+    }
+    return Response.json({
+      answer,
+      model: targetModel,
+      skills: input.skills,
+      context: context.info,
+    });
   } catch (error) {
     if (error instanceof z.ZodError)
       return Response.json(

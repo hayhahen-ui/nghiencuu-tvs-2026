@@ -31,6 +31,12 @@ export type ScienceGroup = {
   description: string;
   count: number;
 };
+export type AIModelInfo = {
+  id: string;
+  name: string;
+  provider?: string;
+  tier?: "free" | "standard" | "preview" | "default";
+};
 export type Paper = {
   id: string;
   title: string;

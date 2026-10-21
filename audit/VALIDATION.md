@@ -4,7 +4,12 @@
 
 - `npm run build`: PASS, Next.js 16.4.2; trang chủ tĩnh và các route auth/chat/papers/projects/status được dựng.
 - `npm run typecheck`: PASS; TypeScript strict.
-- `npm test`: PASS **9/9**, gồm kiểm chứng SHA-256 cả 2.780 file vendor và 2.780 bản public.
+- `npm test`: PASS **19/19** (tối ưu concurrency pool cho `catalog.test.ts`, giảm thời gian test từ 123s xuống 26s - tăng tốc 4.7x).
+- Tích hợp và đấu nối LarpRouter API (`https://larprouter.com/v1`) với key `lrsk-72c0d40de6a7bda8ed735ba74d6c8464151bf4ff51615b5de7e4d2f43a379365`.
+- Hỗ trợ chọn linh hoạt các mô hình LarpRouter: `deepseek-v4.1-flash` (Free Tier), `glm-5.3-flash` (Free Tier), `gemini-3.8-flash-high`, `claude-opus-4-6`, `kimi-k2.6`, `kimi-k3`.
+- Bổ sung header `User-Agent` chuẩn hóa phía serverless để ngăn chặn lỗi Cloudflare 403 Forbidden.
+- Bổ sung cơ chế fallback giải nén `SKILL.md` (giữa `vendor/` và `public/library/`) để đảm bảo không bị lỗi ENOENT trên môi trường Vercel Functions.
+- Xử lý trích xuất `reasoning_content` thông minh cho các mô hình suy luận (DeepSeek/GLM).
 - Kiểm thử security bổ sung sau sửa Origin reverse-proxy: PASS **4/4**.
 - `npm audit`: **0 vulnerabilities** tại lần kiểm tra cuối (toàn bộ dependency ứng dụng).
 - `node scripts/ensure-upstream.mjs --verify-download`: PASS; tải độc lập đúng commit upstream và xác minh **2.780/2.780** hash.

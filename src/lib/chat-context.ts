@@ -9,6 +9,7 @@ export function createChatSchema(knownIds: string[]) {
     })).min(1).max(20),
     skills: z.array(z.string().regex(/^[a-z0-9-]+$/).refine((id) => known.has(id)))
       .max(known.size).default([]).transform((ids) => [...new Set(ids)]),
+    model: z.string().max(100).optional(),
   });
 }
 

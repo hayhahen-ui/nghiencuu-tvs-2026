@@ -14,13 +14,21 @@
 
 Trong **Settings → Environment Variables**, thêm các biến cho Production và Preview theo nhu cầu:
 
+### Cấu hình với LarpRouter (Khuyên dùng)
+
 ```text
-AI_API_KEY=<key của bạn>
-AI_BASE_URL=https://api.openai.com/v1
-AI_MODEL=<model bạn được phép dùng>
-APP_PASSWORD=<mật khẩu workspace dài và khó đoán>
-AUTH_SECRET=<chuỗi ngẫu nhiên ít nhất 32 ký tự>
+AI_API_KEY=lrsk-72c0d40de6a7bda8ed735ba74d6c8464151bf4ff51615b5de7e4d2f43a379365
+AI_BASE_URL=https://larprouter.com/v1
+AI_MODEL=deepseek-v4.1-flash
+APP_PASSWORD=research-0f3b06373ede
+AUTH_SECRET=442e81d936dc134156b62f63dcbd1fe98df9aebf9f1c1c9c9b73cd52a1369a52
 ```
+
+> **Ghi chú về model LarpRouter:**
+> - `deepseek-v4.1-flash` (Free tier, 1M context, 128k output) - mặc định
+> - `glm-5.3-flash` (Free tier, 1M context, 128k output)
+> - `gemini-3.8-flash-high`, `claude-opus-4-6`, `kimi-k2.6`, `kimi-k3` (Standard)
+> Người dùng có thể linh hoạt chuyển đổi giữa các mô hình này trực tiếp trên giao diện Trợ lý nghiên cứu!
 
 Sinh secret bằng:
 
