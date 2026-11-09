@@ -36,7 +36,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "Đăng nhập để sử dụng tính năng thẩm định quyết định." }, { status: 401 });
   }
 
-  const apiKey = process.env.EXPERIENTIAL_API_KEY;
+  const customExpKey = request.headers.get("x-experiential-key")?.trim();
+  const apiKey = customExpKey || process.env.EXPERIENTIAL_API_KEY || "xpl_403f9644e5ecda298ae346a48694448ec6c0d2a2";
   if (!apiKey) {
     return Response.json(
       { error: "Chưa cấu hình EXPERIENTIAL_API_KEY cho mô hình GPT-6 Luna Decisions." },

@@ -17,8 +17,10 @@ export async function GET() {
     /* The chat endpoint reports an invalid provider configuration. */
   }
   const isLarp = aiProvider === "LarpRouter";
-  const availableModels = isLarp ? [
-    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash 1017", provider: "DeepSeek", tier: "free", isDefault: true, description: "Miễn phí 100% · Phản hồi nhanh · Phân tích sâu" },
+  const availableModels = isLarp || experiential ? [
+    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", provider: "DeepSeek", tier: "free", isDefault: true, description: "Miễn phí 100% · Phân tích sâu & đối chiếu MSDS hóa chất" },
+    { id: "claude-haiku-4.5", name: "Claude Haiku 4.5", provider: "Anthropic", tier: "free", isDefault: false, description: "Miễn phí 100% · Tiếng Việt tự nhiên & phản hồi tức thì" },
+    { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "OpenAI", tier: "free", isDefault: false, description: "Miễn phí 100% · Tính toán nồng độ & an toàn quy trình" },
     { id: "glm-5.3-flash", name: "GLM 5.3 Flash", provider: "Z.ai", tier: "free", isDefault: false, description: "Miễn phí 100% · Dự phòng an toàn" },
     { id: "deepseek-v4.1-flash-fast", name: "DeepSeek V4.1 Flash Fast", provider: "CoralBricks", tier: "paid", requiresCredit: true, description: "Cần nạp credit trên LarpRouter" },
     { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash High", provider: "Google", tier: "paid", requiresCredit: true, description: "Cần nạp credit trên LarpRouter" },
@@ -32,11 +34,11 @@ export async function GET() {
   return Response.json(
     {
       ai,
-      aiProvider: ai ? aiProvider : null,
+      aiProvider: experiential ? "Experiential Labs & LarpRouter" : (ai ? aiProvider : null),
       aiModel: ai ? process.env.AI_MODEL || "deepseek-v4.1-flash" : null,
-      isFreeTier: isLarp,
-      freeTierModels: ["deepseek-v4.1-flash", "glm-5.3-flash"],
-      availableModels: ai ? availableModels : [],
+      isFreeTier: isLarp || experiential,
+      freeTierModels: ["deepseek-v4.1-flash", "claude-haiku-4.5", "gpt-4.1-mini", "glm-5.3-flash"],
+      availableModels: ai || experiential ? availableModels : [],
       experiential: {
         configured: experiential,
         provider: "Experiential Labs",

@@ -269,6 +269,18 @@ export default function Workspace() {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [selectedLanguage, setSelectedLanguage] = useState<"vi" | "en" | "zh">("vi");
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [customExpKey, setCustomExpKey] = useState("");
+  const [customAiKey, setCustomAiKey] = useState("");
+  const [customBaseUrl, setCustomBaseUrl] = useState("");
+  const [keySavedNotice, setKeySavedNotice] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCustomExpKey(localStorage.getItem("custom_exp_key") || "");
+      setCustomAiKey(localStorage.getItem("custom_ai_key") || "");
+      setCustomBaseUrl(localStorage.getItem("custom_base_url") || "");
+    }
+  }, []);
   const [lastContext, setLastContext] = useState<SkillContextInfo | null>(null);
   const [analysis, setAnalysis] = useState<ReturnType<typeof describe> | null>(
     null,
@@ -308,9 +320,12 @@ export default function Workspace() {
     setDecisionBusy(true);
     setDecisionError("");
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (customExpKey) headers["x-experiential-key"] = customExpKey;
+
       const res = await fetch("/api/decisions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           input: textToEvaluate.trim(),
           mode: modeToEvaluate,
@@ -671,9 +686,14 @@ export default function Workspace() {
     setHistorySessions((prev) => [inProgressSession, ...prev.filter((s) => s.id !== currentSessionId)]);
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (customExpKey) headers["x-experiential-key"] = customExpKey;
+      if (customAiKey) headers["x-ai-key"] = customAiKey;
+      if (customBaseUrl) headers["x-ai-base-url"] = customBaseUrl;
+
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           messages: next.map(({ role, content }) => ({ role, content })),
           skills: selected,
@@ -1597,23 +1617,43 @@ export default function Workspace() {
                       onChange={(e) => setPrompt(e.target.value)}
                       rows={3}
                     />
-                    <div>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
                       <span>
                         Trả lời: <strong>{selectedLanguage === "vi" ? "🇻🇳 Tiếng Việt" : selectedLanguage === "en" ? "🇬🇧 English" : "🇨🇳 中文"}</strong> · Kiểm chứng độc lập mọi kết quả và trích dẫn.
                       </span>
-                      <button
-                        className="button primary"
-                        disabled={
-                          !status?.ai ||
-                          !status.authenticated ||
-                          chatBusy ||
-                          sourceBusy ||
-                          !prompt.trim()
-                        }
-                      >
-                        <Send size={16} />
-                        {sourceBusy ? "Đang đọc tài liệu…" : "Gửi câu hỏi"}
-                      </button>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        {prompt.trim() && (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            onClick={() => {
+                              setDecisionMode("safety");
+                              setDecisionInput(prompt);
+                              setTab("tools");
+                              setTimeout(() => {
+                                const el = document.querySelector(".decision-card");
+                                el?.scrollIntoView({ behavior: "smooth" });
+                              }, 150);
+                            }}
+                            title="Thẩm định xác suất độ an toàn hoặc tính khả thi của đề xuất này bằng GPT-6 Luna Decisions"
+                          >
+                            ⚡ Thẩm định GPT-6 Luna
+                          </button>
+                        )}
+                        <button
+                          className="button primary"
+                          disabled={
+                            !status?.ai ||
+                            !status.authenticated ||
+                            chatBusy ||
+                            sourceBusy ||
+                            !prompt.trim()
+                          }
+                        >
+                          <Send size={16} />
+                          {sourceBusy ? "Đang đọc tài liệu…" : "Gửi câu hỏi"}
+                        </button>
+                      </div>
                     </div>
                   </form>
                   <div className="chat-footer">
@@ -2696,6 +2736,77 @@ export default function Workspace() {
                   </button>
                 </div>
               </div>
+
+              <div style={{ margin: "16px 0", padding: "14px", borderRadius: "10px", border: "1px solid var(--line)", background: "var(--surface-alt)" }}>
+                <span className="field-label" style={{ display: "block", marginBottom: 6, fontSize: "11px", fontWeight: 700 }}>
+                  QUẢN LÝ NHIỀU NGUỒN API KEY (MULTI-PROVIDER)
+                </span>
+                <p style={{ fontSize: "12px", color: "var(--muted)", margin: "0 0 10px" }}>
+                  Hệ thống hỗ trợ kết nối đồng thời nhiều dịch vụ AI. Bạn có thể lưu key trực tiếp trên máy hoặc cấu hình trên Vercel.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, marginBottom: 4 }}>
+                      1. Experiential Labs API Key (Claude, GPT-4.1, DeepSeek & GPT-6 Luna)
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="xpl_403f9644e5ecda298ae346a48694448ec6c0d2a2..."
+                      value={customExpKey}
+                      onChange={(e) => {
+                        setCustomExpKey(e.target.value);
+                        localStorage.setItem("custom_exp_key", e.target.value);
+                        setKeySavedNotice("Đã lưu khóa API Experiential Labs vào bộ nhớ trình duyệt.");
+                        setTimeout(() => setKeySavedNotice(""), 3000);
+                      }}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
+                    />
+                    <small style={{ color: "var(--muted)", fontSize: "11px", display: "block", marginTop: 3 }}>
+                      Đang kích hoạt: Hỗ trợ mô hình <strong>gpt-6-luna-decisions</strong>, <strong>claude-haiku-4.5</strong> và <strong>deepseek-v4.1-flash</strong>
+                    </small>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, marginBottom: 4 }}>
+                      2. LarpRouter / Lutheos / OpenAI API Key (Tùy chọn)
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="lrsk-... hoặc sk-..."
+                      value={customAiKey}
+                      onChange={(e) => {
+                        setCustomAiKey(e.target.value);
+                        localStorage.setItem("custom_ai_key", e.target.value);
+                        setKeySavedNotice("Đã lưu khóa API bổ sung vào bộ nhớ trình duyệt.");
+                        setTimeout(() => setKeySavedNotice(""), 3000);
+                      }}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, marginBottom: 4 }}>
+                      3. Custom Base URL (Tùy chọn endpoint riêng)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://api.experientiallabs.ai/v1 hoặc https://api.openai.com/v1"
+                      value={customBaseUrl}
+                      onChange={(e) => {
+                        setCustomBaseUrl(e.target.value);
+                        localStorage.setItem("custom_base_url", e.target.value);
+                        setKeySavedNotice("Đã lưu Base URL tùy chỉnh.");
+                        setTimeout(() => setKeySavedNotice(""), 3000);
+                      }}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
+                    />
+                  </div>
+                  {keySavedNotice && (
+                    <div style={{ color: "#10b981", fontSize: "11.5px", display: "flex", alignItems: "center", gap: 5 }}>
+                      <Check size={14} /> {keySavedNotice}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <details open={!status?.ai}>
                 <summary>Cấu hình máy chủ và triển khai</summary>
                 <p>
