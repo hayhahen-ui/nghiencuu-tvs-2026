@@ -1,0 +1,175 @@
+
+PHIẾU AN TOÀN HÓA CHẤT (SAFETY DATA SHEET - SDS)
+Theo chuẩn GHS (Globally Harmonized System) và Nghị định 113/2017/NĐ-CP
+
+TÊN SẢN PHẨM: ETHANOL 99.5% (CỒN TUYỆT ĐỐI / ETHYL ALCOHOL)
+Mã sản phẩm: ETH-995-AR
+Nhà sản xuất: Công ty Cổ phần Hóa chất Nghiên cứu Khoa học Việt Nam
+Ngày lập: 15/01/2026 | Phiên bản: 4.0 | Cập nhật GHS Rev.10
+
+================================================================================
+MỤC 1. NHẬN DẠNG HÓA CHẤT VÀ THÔNG TIN NHÀ CUNG CẤP (IDENTIFICATION)
+- Tên sản phẩm: Ethanol 99.5% (Ethyl alcohol absolute)
+- Tên thương mại: Cồn tuyệt đối 99.5 độ, Ancol etylic tinh khiết
+- Tên hóa học: Ethanol
+- Công thức phân tử: C2H5OH / C2H6O
+- Khối lượng mol: 46.07 g/mol
+- Số CAS: 64-17-5
+- Mã UN: UN 1170
+- Số EC: 200-578-6
+- Mục đích sử dụng: Dung môi thí nghiệm, phân tích sắc ký, tổng hợp hữu cơ, sát khuẩn y tế.
+- Thông tin nhà cung cấp: Phòng Thí nghiệm Hóa học Công nghệ cao. Điện thoại khẩn cấp: 1900-CHEM-SAFE.
+
+================================================================================
+MỤC 2. NHẬN DẠNG MỐI NGUY HẠI (HAZARDS IDENTIFICATION)
+- Phân loại GHS:
+  + Chất lỏng dễ cháy (Flammable liquids): Phân nhóm 2 (H225)
+  + Tổn thương mắt nghiêm trọng / Kích ứng mắt (Eye irritation): Phân nhóm 2A (H319)
+  + Độc tính đến cơ quan đích sau phơi nhiễm đơn (STOT SE): Phân nhóm 3, buồn ngủ, chóng mặt (H336)
+- Từ cảnh báo (Signal Word): DANGER (NGUY HIỂM)
+- Biểu trưng nguy hại (GHS Pictograms): GHS02 (Ngọn lửa - Dễ cháy), GHS07 (Dấu chấm than - Kích ứng)
+- Các cảnh báo nguy hại (Hazard Statements):
+  + H225: Chất lỏng và hơi rất dễ cháy (Highly flammable liquid and vapour).
+  + H319: Gây kích ứng mắt nghiêm trọng (Causes serious eye irritation).
+  + H336: Có thể gây buồn ngủ hoặc chóng mặt nếu hít phải liều cao.
+- Các cảnh báo phòng ngừa (Precautionary Statements):
+  + P210: Tránh xa nguồn nhiệt, bề mặt nóng, tia lửa, ngọn lửa trần và các nguồn gây cháy khác. Không hút thuốc.
+  + P233: Đậy chặt nắp thùng chứa khi không sử dụng.
+  + P240: Tiếp đất thùng chứa và thiết bị tiếp nhận để tránh tích điện.
+  + P241: Sử dụng thiết bị điện, thông gió, chiếu sáng phòng nổ.
+  + P280: Mang găng tay bảo hộ, quần áo bảo hộ, kính bảo hộ và mặt nạ bảo vệ mặt.
+  + P303+P361+P353: NẾU DÍNH VÀO DA (hoặc tóc): Cởi ngay lập tức toàn bộ quần áo bị nhiễm bẩn. Rửa sạch da bằng nước hoặc tắm vòi sen.
+  + P305+P351+P338: NẾU TIẾP XÚC VỚI MẮT: Rửa cẩn thận bằng nước trong nhiều phút. Tháo kính áp tròng nếu có và dễ thực hiện. Tiếp tục rửa.
+  + P337+P313: Nếu kích ứng mắt không giảm: Nhận tư vấn hoặc chăm sóc y tế từ bác sĩ.
+  + P370+P378: Trong trường hợp hỏa hoạn: Sử dụng bột hóa chất khô, bọt chống cồn, cát hoặc khí CO2 để dập tắt.
+  + P403+P235: Bảo quản nơi thông thoáng khí. Giữ mát ở nhiệt độ dưới 30°C.
+  + P501: Thải bỏ chất/thùng chứa theo đúng quy chuẩn môi trường quốc gia.
+
+================================================================================
+MỤC 3. THÀNH PHẦN VÀ THÔNG TIN VỀ CÁC CHẤT (COMPOSITION / INGREDIENTS)
+- Thành phần chính: Ethanol (Ethyl alcohol)
+  + Tỷ lệ nồng độ: >= 99.5% theo thể tích (v/v)
+  + Số CAS: 64-17-5
+  + Số EC (EINECS): 200-578-6
+  + Chỉ số Index: 603-002-00-5
+- Tạp chất / Nước: <= 0.5% (CAS 7732-18-5)
+- Chất biến tính: Không chứa chất biến tính (Pure grade).
+
+================================================================================
+MỤC 4. BIỆN PHÁP SƠ CỨU Y TẾ (FIRST-AID MEASURES)
+- Hít phải (Inhalation): Đưa nạn nhân ngay ra nơi thoáng mát, trong lành. Nếu khó thở, cho thở oxy hoặc hô hấp nhân tạo. Đưa đến cơ sở y tế nếu triệu chứng không thuyên giảm.
+- Tiếp xúc với da (Skin contact): Cởi bỏ quần áo dính hóa chất. Rửa kỹ vùng da tiếp xúc bằng xà phòng và nhiều nước.
+- Tiếp xúc với mắt (Eye contact): Lập tức rửa mắt dưới vòi nước sạch chảy liên tục tối thiểu 15 phút, đồng thời mở to mí mắt. Tháo kính áp tròng nếu có. Đến khám bác sĩ nhãn khoa.
+- Nuốt phải (Ingestion): Cho nạn nhân súc miệng kỹ bằng nước sạch. KHÔNG được gây nôn trừ khi có chỉ định của nhân viên y tế. Cho nạn nhân uống 1-2 ly nước ấm. Đến ngay cơ sở y tế gần nhất kèm theo phiếu an toàn này.
+
+================================================================================
+MỤC 5. BIỆN PHÁP CHỮA CHÁY (FIRE-FIGHTING MEASURES)
+- Tính chất cháy: Chất lỏng và hơi rất dễ cháy. Hơi ethanol nặng hơn không khí, có thể lan truyền dọc mặt đất đến nguồn đánh lửa xa và bắt lửa ngược trở lại.
+- Chất chữa cháy phù hợp: Bọt kháng cồn (Alcohol-resistant foam), bột hóa học khô (ABC/BC), khí Carbon Dioxide (CO2), phun sương nước để làm mát các thùng chứa xung quanh.
+- Chất chữa cháy không phù hợp: Tia nước áp lực cao (có thể làm hóa chất đang cháy bắn tung tóe và lan rộng đám cháy).
+- Nguy cơ cháy nổ đặc biệt: Nung nóng trong bình kín làm tăng áp suất mạnh và có nguy cơ phát nổ. Khí cháy sinh ra gồm Carbon monoxide (CO) và Carbon dioxide (CO2).
+- Thiết bị bảo hộ chữa cháy: Lính cứu hỏa phải trang bị bình khí thở độc lập áp suất dương (SCBA) và bộ đồ chống cháy toàn thân.
+
+================================================================================
+MỤC 6. BIỆN PHÁP ỨNG PHÓ SỰ CỐ TRÀN ĐỔ, RÒ RỈ (ACCIDENTAL RELEASE MEASURES)
+- Biện pháp phòng ngừa cá nhân: Loại bỏ mọi nguồn đánh lửa (tia lửa, ngọn lửa trần, công tắc điện không phòng nổ). Không hút thuốc. Đảm bảo thông gió triệt để khu vực xảy ra sự cố. Mang kính, găng tay Nitrile, khẩu trang lọc hơi dung môi.
+- Biện pháp bảo vệ môi trường: Ngăn chặn chất lỏng tràn vào hệ thống cống rãnh, nguồn nước ngầm, ao hồ.
+- Biện pháp dọn dẹp và cô lập: Dùng vật liệu thấm hút trơ, không cháy (cát khô, đất mùn, diatomite, vermiculite) để thấm hút sạch dung dịch. Thu gom bằng dụng cụ chống phát tia lửa vào thùng chứa chất thải đậy kín.
+
+================================================================================
+MỤC 7. SỬ DỤNG VÀ BẢO QUẢN AN TOÀN (HANDLING AND STORAGE)
+- Thao tác sử dụng: Thao tác trong tủ hút khí độc hoặc phòng có hệ thống thông gió chống nổ. Tránh hít phải hơi sương. Đóng chặt nắp sau khi chiết rót. Nối đất thiết bị khi sang chiết.
+- Điều kiện bảo quản: Bảo quản ở nơi khô ráo, thoáng gió, nhiệt độ từ 15°C đến 25°C, tránh ánh nắng trực tiếp. Tránh xa tầm tay trẻ em và xa nguồn phát nhiệt, tia lửa. Cách ly khỏi các chất oxy hóa mạnh và kim loại kiềm.
+
+================================================================================
+MỤC 8. KIỂM SOÁT PHƠI NHIỄM VÀ BẢO HỘ CÁ NHÂN (EXPOSURE CONTROLS / PPE)
+- Giới hạn phơi nhiễm nghề nghiệp:
+  + TCVN / ACGIH TLV: STEL = 1000 ppm (1880 mg/m3).
+  + OSHA PEL: TWA = 1000 ppm (1900 mg/m3).
+  + NIOSH REL: TWA = 1000 ppm.
+- Biện pháp kiểm soát kỹ thuật: Hệ thống thông gió cơ học cục bộ phòng nổ. Bồn rửa mắt khẩn cấp và vòi sen tắm khẩn cấp tại nơi làm việc.
+- Trang bị bảo hộ cá nhân (PPE):
+  + Bảo vệ mắt: Kính bảo hộ chống hóa chất kín cạnh hoặc kính che toàn mặt (Face shield).
+  + Bảo vệ tay: Găng tay cao su Nitrile (độ dày tối thiểu 0.4 mm, thời gian thẩm thấu > 480 phút) hoặc Butyl rubber.
+  + Bảo vệ hô hấp: Khi nồng độ hơi vượt ngưỡng, sử dụng mặt nạ lọc có phin lọc hơi hữu cơ (Loại A, màu nâu).
+  + Bảo vệ thân thể: Quần áo bảo hộ lao động vải chống tĩnh điện, giày bảo hộ chống trượt.
+
+================================================================================
+MỤC 9. TÍNH CHẤT LÝ HÓA HỌC (PHYSICAL AND CHEMICAL PROPERTIES)
+- Trạng thái vật lý: Chất lỏng trong suốt, không màu, linh động.
+- Mùi: Mùi thơm cồn đặc trưng, dễ chịu.
+- Ngưỡng mùi: 10 - 100 ppm.
+- Giá trị pH: 7.0 (trung tính trong dung dịch nước).
+- Điểm nóng chảy: -114.1 °C.
+- Điểm sôi: 78.3 °C (ở 1013 hPa).
+- Điểm chớp cháy (Flash point): 13.0 °C (cốc kín c.c.).
+- Nhiệt độ tự bốc cháy: 363.0 °C.
+- Giới hạn nổ: Dưới (LEL) 3.1% vol, Trên (UEL) 27.7% vol.
+- Áp suất hơi: 59 hPa (ở 20 °C).
+- Tỷ trọng hơi (không khí = 1): 1.59.
+- Tỷ trọng / Khối lượng riêng: 0.789 g/cm3 (ở 20 °C).
+- Độ tan trong nước: Tan vô hạn trong nước ở mọi tỷ lệ.
+- Hệ số phân chia n-octanol/nước (log Pow): -0.35.
+
+================================================================================
+MỤC 10. TÍNH ỔN ĐỊNH VÀ KHẢ NĂNG PHẢN ỨNG (STABILITY AND REACTIVITY)
+- Tính ổn định: Ổn định trong điều kiện lưu trữ và sử dụng bình thường.
+- Khả năng phản ứng: Có thể phản ứng tỏa nhiệt mạnh hoặc gây nổ với các chất oxy hóa mãnh liệt.
+- Điều kiện cần tránh: Nhiệt độ cao, nguồn lửa, tia lửa điện, ma sát tĩnh điện, ánh nắng mặt trời trực tiếp.
+- Vật liệu không tương thích (Chất tương kỵ): Chất oxy hóa mạnh, Axit Nitric, Axit Perchloric, Peroxit, Kim loại kiềm (Natri, Kali), Halogen, Phốt pho oxit.
+- Sản phẩm phân hủy nguy hiểm: Carbon monoxide (CO), Carbon dioxide (CO2).
+
+================================================================================
+MỤC 11. THÔNG TIN VỀ ĐỘC TÍNH (TOXICOLOGICAL INFORMATION)
+- Độc tính cấp tính:
+  + LD50 qua đường miệng (Oral, chuột): 10470 mg/kg (OECD 401).
+  + LC50 qua đường hô hấp (Inhalation, chuột, 4h): 124.7 mg/L hơi (OECD 403).
+  + LD50 qua da (Dermal, thỏ): > 15800 mg/kg.
+- Kích ứng da: Tiếp xúc thường xuyên có thể làm khô da, nứt nẻ.
+- Kích ứng mắt: Gây kích ứng mắt nghiêm trọng (OECD 405).
+- Đột biến gen / Khả năng sinh ung thư: IARC Nhóm 1 (áp dụng với tiêu thụ đồ uống có cồn mạn tính). Sử dụng công nghiệp trong môi trường kiểm soát không bị phân loại là tác nhân gây ung thư nghề nghiệp.
+
+================================================================================
+MỤC 12. THÔNG TIN VỀ SINH THÁI (ECOLOGICAL INFORMATION)
+- Độc tính đối với thủy sinh:
+  + Cá (Pimephales promelas, 96h): LC50 = 15300 mg/L (độc tính rất thấp).
+  + Động vật giáp xác (Daphnia magna, 48h): EC50 = 12340 mg/L.
+  + Tảo (Chlorella vulgaris, 72h): EC50 = 275 mg/L.
+- Khả năng phân hủy sinh học: Phân hủy sinh học nhanh chóng (> 80% trong 28 ngày theo OECD 301D).
+- Tiềm năng tích lũy sinh học: Thấp (log Pow = -0.35).
+- Độ linh động trong đất: Di chuyển nhanh trong nước và đất.
+
+================================================================================
+MỤC 13. BIỆN PHÁP TIÊU HỦY VÀ XỬ LÝ CHẤT THẢI (DISPOSAL CONSIDERATIONS)
+- Xử lý hóa chất: Hóa chất thải được phân loại là chất thải nguy hại dễ cháy. Không đổ trực tiếp vào cống thoát nước sinh hoạt. Xử lý bằng phương pháp đốt nhiệt phân hủy tại cơ sở có giấy phép hành nghề quản lý chất thải nguy hại.
+- Xử lý bao bì/thùng chứa: Thùng rỗng chứa hơi ethanol có nguy cơ nổ; không cắt, hàn thùng khi chưa sục khí trơ.
+
+================================================================================
+MỤC 14. THÔNG TIN VẬN CHUYỂN (TRANSPORT INFORMATION)
+- Mã số UN (UN Number): UN 1170
+- Tên gửi hàng thích hợp (Proper Shipping Name): ETHANOL (ETHYL ALCOHOL)
+- Phân nhóm nguy hiểm khi vận chuyển (Transport Hazard Class): Lớp 3 (Chất lỏng dễ cháy)
+- Nhóm đóng gói (Packing Group): Nhóm II (Độ nguy hiểm trung bình)
+- Nhãn cảnh báo: Nhãn Lớp 3 (Flammable Liquid)
+- Ô nhiễm biển (Marine Pollutant): Không (No)
+- Mã nguy hại vận chuyển (Kemler Code): 33
+
+================================================================================
+MỤC 15. THÔNG TIN QUY ĐỊNH PHÁP LUẬT (REGULATORY INFORMATION)
+- Quy định tại Việt Nam:
+  + Luật Hóa chất số 06/2007/QH12.
+  + Nghị định 113/2017/NĐ-CP và Nghị định 82/2022/NĐ-CP quy định chi tiết thi hành Luật Hóa chất.
+  + Thông tư 32/2017/TT-BCT hướng dẫn ghi nhãn hóa chất và lập phiếu an toàn hóa chất.
+- Quy chuẩn quốc tế:
+  + Quy chế REACH (EC) số 1907/2006.
+  + Tiêu chuẩn OSHA Hazard Communication Standard (29 CFR 1910.1200).
+  + Hệ thống hài hòa toàn cầu GHS ấn bản Rev. 10.
+
+================================================================================
+MỤC 16. THÔNG TIN KHÁC (OTHER INFORMATION)
+- Thang đánh giá rủi ro NFPA 704:
+  + Sức khỏe (Health - Xanh dương): 2 (Nguy hiểm)
+  + Dễ cháy (Flammability - Đỏ): 3 (Bốc cháy ở nhiệt độ thường)
+  + Độ không ổn định (Instability - Vàng): 0 (Ổn định)
+  + Nguy hại đặc biệt: Không
+- Ghi chú: Dữ liệu trong phiếu an toàn hóa chất này phản ánh kiến thức khoa học hiện thời và chỉ nhằm mục đích hướng dẫn các biện pháp an toàn khi sử dụng, bảo quản, vận chuyển hóa chất. Người sử dụng phải tự chịu trách nhiệm đánh giá tính phù hợp trong điều kiện làm việc thực tế.

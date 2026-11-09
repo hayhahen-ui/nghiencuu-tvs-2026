@@ -2,7 +2,7 @@
 
 Ứng dụng web tiếng Việt sử dụng toàn bộ **177 Scientific Agent Skills v2.72.0**. Xây bằng Next.js, TypeScript và React. Có cấu hình triển khai Vercel, CI và kiểm tra tính toàn vẹn của từng file nguồn.
 
-[Triển khai trên Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmrbit4578%2Fagent-nghiencuu-2026) · [Báo cáo audit](docs/AUDIT.md) · [Hướng dẫn triển khai](docs/DEPLOY.md) · [Phạm vi chức năng](docs/FEATURES.md)
+[Triển khai trên Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fhayhahen-ui%2Fnghiencuu-tvs-2026) · [Báo cáo audit](docs/AUDIT.md) · [Hướng dẫn triển khai](docs/DEPLOY.md) · [Phạm vi chức năng](docs/FEATURES.md)
 
 ## Chạy ngay
 
@@ -14,7 +14,7 @@ npm run catalog
 npm run dev
 ```
 
-Mở `http://localhost:3000`. Để dùng local như ứng dụng thông thường, chạy `npm run local` (tự build rồi mở server ở port 3000). Xem [hướng dẫn local và lỗi CSP/hydration](docs/LOCAL.md).
+Mở `http://localhost:3005`. Để dùng local như ứng dụng thông thường, chạy `npm run local` (tự build rồi mở server ở port 3005, không đụng cổng 3000 cũ). Xem [hướng dẫn local và lỗi CSP/hydration](docs/LOCAL.md).
 
 Để kiểm tra production:
 
@@ -51,6 +51,8 @@ Sao chép `.env.example` thành `.env.local`, sau đó cấu hình các biến c
 | `AUTH_SECRET` | Chuỗi ngẫu nhiên ít nhất 32 ký tự để ký cookie |
 | `UPSTASH_REDIS_REST_URL` | Tùy chọn: lưu dự án đám mây và hạn mức dùng chung |
 | `UPSTASH_REDIS_REST_TOKEN` | Tùy chọn: quyền truy cập Redis REST phía server |
+| `EXPERIENTIAL_API_KEY` | Tùy chọn: API key cho GPT-6 Luna Decisions thẩm định xác suất & an toàn |
+| `EXPERIENTIAL_BASE_URL` | Tùy chọn: `https://api.experientiallabs.ai/v1` |
 
 Chưa có key: để trống các biến AI. Thư viện vẫn hoạt động. Không dùng tiền tố `NEXT_PUBLIC_` cho thông tin bí mật. Đổi `AUTH_SECRET` sẽ vô hiệu hóa các phiên đăng nhập cũ.
 

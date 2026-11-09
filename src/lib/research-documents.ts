@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { analyzeMsds } from "./msds-analyzer";
 
 export const MAX_DOCUMENT_BYTES = 30 * 1024 * 1024;
 export const MAX_DOCUMENT_CHARS = 2_000_000;
@@ -91,10 +92,12 @@ function normalize(value: string) {
 // Read/store every unit locally; rank only when the chosen sources exceed an AI request's budget.
 export function selectDocumentEvidence(documents: ResearchDocument[], query: string): EvidenceDocument[] {
   const tokens = [...new Set(normalize(query).match(/[a-z0-9][a-z0-9.-]{1,}/g) || [])];
+  const isChem = /msds|sds|hoa chat|an toan|nguy hai|cas|un|doc tinh|chay|bao quan|so cuu|tuong ky|ppe/i.test(normalize(query));
   const ranked = documents.flatMap((doc) => doc.units.map((unit, order) => {
     const text = normalize(unit.text);
     const title = normalize(doc.name);
-    const score = tokens.reduce((n, token) => n + (title.includes(token) ? 4 : 0) +
+    const chemBonus = isChem && (/\b[1-9][0-9]{1,6}-\d{2}-\d\b/.test(unit.text) || /\b(ghs|h[2-4][0-9]{2}|p[1-5][0-9]{2})\b/i.test(unit.text)) ? 6 : 0;
+    const score = chemBonus + tokens.reduce((n, token) => n + (title.includes(token) ? 4 : 0) +
       Math.min(8, text.split(token).length - 1) * (/[0-9]/.test(token) ? 3 : 1), 0);
     return { doc, unit, order, score };
   }));
@@ -119,11 +122,31 @@ export function selectDocumentEvidence(documents: ResearchDocument[], query: str
 
 export function documentEvidenceContext(documents: EvidenceDocument[]): { text: string; info: EvidenceReceipt } {
   const sources = documents.map((doc) => ({ id: doc.id, name: doc.name, units: doc.units.map(({ id, locator }) => ({ id, locator })) }));
-  const text = documents.map((doc) => [
-    `TÀI LIỆU NGƯỜI DÙNG: ${JSON.stringify(doc.name)} · ${doc.units.length}/${doc.totalUnits} đoạn đã cung cấp.`,
-    ...(doc.warnings.length ? [`Lưu ý trích xuất: ${doc.warnings.join("; ")}`] : []),
-    ...doc.units.map((unit) => `Nguồn: ${JSON.stringify(doc.name)} · ${unit.locator}${unit.method === "ocr" ? " (OCR, cần đối chiếu số liệu với bản gốc)" : ""}\nTrích dẫn bằng liên kết [tên file, ${unit.locator}](#source/${doc.id}/${unit.id})\n${unit.text || "[Trang/đoạn không có chữ trích xuất được]"}`),
-  ].join("\n\n")).join("\n\n");
+  const text = documents.map((doc) => {
+    let msdsSummary = "";
+    try {
+      const analysis = analyzeMsds({
+        id: doc.id,
+        name: doc.name,
+        format: doc.format,
+        size: 0,
+        importedAt: "",
+        unitCount: doc.totalUnits,
+        processedCount: doc.units.length,
+        units: doc.units,
+        warnings: doc.warnings,
+      });
+      if (analysis.isMsds) {
+        msdsSummary = `\n\n[DỮ LIỆU AN TOÀN HÓA CHẤT GHS ĐÃ CHUẨN HÓA TỰ ĐỘNG CHO TRỢ LÝ]:\n${analysis.summaryText}`;
+      }
+    } catch {}
+
+    return [
+      `TÀI LIỆU NGƯỜI DÙNG: ${JSON.stringify(doc.name)} · ${doc.units.length}/${doc.totalUnits} đoạn đã cung cấp.${msdsSummary}`,
+      ...(doc.warnings.length ? [`Lưu ý trích xuất: ${doc.warnings.join("; ")}`] : []),
+      ...doc.units.map((unit) => `Nguồn: ${JSON.stringify(doc.name)} · ${unit.locator}${unit.method === "ocr" ? " (OCR, cần đối chiếu số liệu với bản gốc)" : ""}\nTrích dẫn bằng liên kết [tên file, ${unit.locator}](#source/${doc.id}/${unit.id})\n${unit.text || "[Trang/đoạn không có chữ trích xuất được]"}`),
+    ].join("\n\n");
+  }).join("\n\n");
   return { text, info: {
     documents: documents.length,
     totalUnits: documents.reduce((n, doc) => n + doc.totalUnits, 0),

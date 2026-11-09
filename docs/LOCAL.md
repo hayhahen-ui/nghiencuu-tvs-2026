@@ -8,7 +8,7 @@ Từ gốc repository, chạy:
 npm run local
 ```
 
-Lệnh này build bản production rồi phục vụ ở `http://localhost:3000` trên loopback. Cấu hình AI vẫn đọc từ `.env.local`. Khi sửa mã, dừng server rồi chạy lại lệnh để dựng bản mới. Đóng server đang chiếm port 3000 trước khi khởi động phiên khác.
+Lệnh này build bản production rồi phục vụ ở `http://localhost:3005` trên loopback. Cấu hình AI vẫn đọc từ `.env.local`. Khi sửa mã, dừng server rồi chạy lại lệnh để dựng bản mới. Port 3005 được tách riêng hoàn toàn, không đụng độ với port 3000 cũ.
 
 ## Đăng nhập để dùng AI
 

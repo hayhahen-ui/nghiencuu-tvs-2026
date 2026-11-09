@@ -41,6 +41,12 @@ import {
   Trash2,
   Upload,
   X,
+  History,
+  Clock,
+  FileText,
+  Printer,
+  Sun,
+  Moon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -53,6 +59,17 @@ import { projectsSchema } from "@/lib/projects";
 import type { Catalog, Paper, Project, Skill } from "@/lib/types";
 import ResearchSources, { SourcePreview, type SourceLocation } from "./research-sources";
 import { loadDocuments } from "@/lib/document-store";
+import {
+  loadChatSessions,
+  saveChatSession,
+  deleteChatSession,
+  clearAllChatSessions,
+  exportSessionToMarkdown,
+  generateScientificWordDocument,
+  openScientificPdfPrintView,
+  type ChatSession,
+  type ChatMessageItem,
+} from "@/lib/chat-history-store";
 import { selectDocumentEvidence, type StoredDocument, type EvidenceReceipt } from "@/lib/research-documents";
 
 const scienceIcons: Record<string, typeof Microscope> = {
@@ -84,7 +101,23 @@ type Status = {
   ai: boolean;
   aiProvider?: string | null;
   aiModel?: string | null;
-  availableModels?: { id: string; name: string; provider?: string; tier?: string }[];
+  isFreeTier?: boolean;
+  freeTierModels?: string[];
+  availableModels?: {
+    id: string;
+    name: string;
+    provider?: string;
+    tier?: string;
+    isDefault?: boolean;
+    requiresCredit?: boolean;
+    description?: string;
+  }[];
+  experiential?: {
+    configured: boolean;
+    provider: string;
+    decisionModel: string;
+    description: string;
+  };
   authConfigured: boolean;
   authenticated: boolean;
   cloudStorage: boolean;
@@ -221,9 +254,11 @@ export default function Workspace() {
   const [paperTotal, setPaperTotal] = useState<number | null>(null);
   const [paperBusy, setPaperBusy] = useState(false);
   const [paperError, setPaperError] = useState("");
-  const [chat, setChat] = useState<
-    { role: "user" | "assistant"; content: string; evidence?: EvidenceReceipt }[]
-  >([]);
+  const [chat, setChat] = useState<ChatMessageItem[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => `session-${Date.now()}`);
+  const [historySessions, setHistorySessions] = useState<ChatSession[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
   const [sourceDocuments, setSourceDocuments] = useState<StoredDocument[]>([]);
   const [enabledDocuments, setEnabledDocuments] = useState<string[]>([]);
   const [sourceBusy, setSourceBusy] = useState(false);
@@ -232,6 +267,8 @@ export default function Workspace() {
   const [chatBusy, setChatBusy] = useState(false);
   const [chatError, setChatError] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedLanguage, setSelectedLanguage] = useState<"vi" | "en" | "zh">("vi");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [lastContext, setLastContext] = useState<SkillContextInfo | null>(null);
   const [analysis, setAnalysis] = useState<ReturnType<typeof describe> | null>(
     null,
@@ -243,6 +280,51 @@ export default function Workspace() {
   const [dnaResult, setDnaResult] = useState<ReturnType<
     typeof sequenceStats
   > | null>(null);
+  const [decisionInput, setDecisionInput] = useState("");
+  const [decisionMode, setDecisionMode] = useState<"safety" | "hypothesis" | "review">("safety");
+  const [decisionBusy, setDecisionBusy] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+  const [decisionResult, setDecisionResult] = useState<{
+    model: string;
+    provider: string;
+    answers: Array<{
+      type: string;
+      name: string;
+      choice?: string;
+      probabilities?: Array<{ value: string; probability: number }>;
+      confidence?: number;
+    }>;
+    usage?: { total_tokens: number; cost: number };
+    evaluatedAt: string;
+  } | null>(null);
+
+  const runDecisionEvaluation = async (customInput?: string, customMode?: "safety" | "hypothesis" | "review") => {
+    const textToEvaluate = customInput || decisionInput;
+    const modeToEvaluate = customMode || decisionMode;
+    if (!textToEvaluate.trim()) {
+      setDecisionError("Vui lòng nhập nội dung đề xuất hoặc giả thuyết cần thẩm định.");
+      return;
+    }
+    setDecisionBusy(true);
+    setDecisionError("");
+    try {
+      const res = await fetch("/api/decisions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: textToEvaluate.trim(),
+          mode: modeToEvaluate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Thẩm định thất bại.");
+      setDecisionResult(data);
+    } catch (err: any) {
+      setDecisionError(err?.message || "Không thể thực hiện thẩm định.");
+    } finally {
+      setDecisionBusy(false);
+    }
+  };
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [fileQuery, setFileQuery] = useState("");
   const [filePage, setFilePage] = useState(0);
@@ -255,9 +337,153 @@ export default function Workspace() {
       const data: Status = await r.json();
       setStatus(data);
       if (data.aiModel) {
-        setSelectedModel((prev) => prev || data.aiModel || "");
+        setSelectedModel((prev) => {
+          if (!prev) return data.aiModel || "deepseek-v4.1-flash";
+          const currentInfo = data.availableModels?.find((m) => m.id === prev);
+          if (data.isFreeTier && currentInfo && currentInfo.tier === "paid") {
+            return data.aiModel || "deepseek-v4.1-flash";
+          }
+          return prev;
+        });
       }
     }
+  };
+  useEffect(() => {
+    try {
+      const savedLang = localStorage.getItem("research_agent_language");
+      if (savedLang === "vi" || savedLang === "en" || savedLang === "zh") {
+        setSelectedLanguage(savedLang);
+      }
+    } catch {}
+  }, []);
+
+  const changeLanguage = (lang: "vi" | "en" | "zh") => {
+    setSelectedLanguage(lang);
+    try {
+      localStorage.setItem("research_agent_language", lang);
+    } catch {}
+  };
+
+  useEffect(() => {
+    try {
+      const current = document.documentElement.getAttribute("data-theme") as "light" | "dark" | null;
+      const saved = localStorage.getItem("research_agent_theme") as "light" | "dark" | null;
+      const initialTheme = current || saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      setTheme(initialTheme);
+      document.documentElement.setAttribute("data-theme", initialTheme);
+    } catch {}
+  }, []);
+
+  const toggleTheme = (newTheme: "light" | "dark") => {
+    setTheme(newTheme);
+    document.documentElement.setAttribute("data-theme", newTheme);
+    try {
+      localStorage.setItem("research_agent_theme", newTheme);
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadChatSessions().then((sessions) => {
+      setHistorySessions(sessions);
+      if (sessions.length > 0) {
+        const latest = sessions[0];
+        setCurrentSessionId(latest.id);
+        setChat(latest.messages);
+        if (latest.model) {
+          const isKnownPaid = ["deepseek-v4.1-flash-fast", "gemini-3.8-flash-high", "claude-opus-4-6", "kimi-k2.6", "kimi-k3"].includes(latest.model);
+          setSelectedModel(isKnownPaid ? "deepseek-v4.1-flash" : latest.model);
+        }
+        if (latest.language) setSelectedLanguage(latest.language);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const startNewChat = () => {
+    const newId = `session-${Date.now()}`;
+    setCurrentSessionId(newId);
+    setChat([]);
+    setLastContext(null);
+    setChatError("");
+  };
+
+  const restoreSession = (session: ChatSession) => {
+    setCurrentSessionId(session.id);
+    setChat(session.messages);
+    if (session.model) {
+      const isKnownPaid = ["deepseek-v4.1-flash-fast", "gemini-3.8-flash-high", "claude-opus-4-6", "kimi-k2.6", "kimi-k3"].includes(session.model);
+      setSelectedModel(isKnownPaid ? "deepseek-v4.1-flash" : session.model);
+    }
+    if (session.language) setSelectedLanguage(session.language);
+    setShowHistoryModal(false);
+  };
+
+  const removeSession = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await deleteChatSession(id);
+    setHistorySessions((prev) => prev.filter((s) => s.id !== id));
+    if (id === currentSessionId) {
+      startNewChat();
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!window.confirm("Anh có chắc muốn xóa toàn bộ lịch sử các cuộc trò chuyện đã lưu?")) return;
+    await clearAllChatSessions();
+    setHistorySessions([]);
+    startNewChat();
+    setShowHistoryModal(false);
+  };
+
+  const [exportingDocx, setExportingDocx] = useState(false);
+
+  const handleExportWord = async (sessionToExport?: ChatSession) => {
+    const session = sessionToExport || historySessions.find((s) => s.id === currentSessionId) || {
+      id: currentSessionId,
+      title: prompt.trim().slice(0, 50) || "Hội thoại nghiên cứu",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      model: selectedModel || status?.aiModel || "deepseek-v4.1-flash",
+      language: selectedLanguage,
+      messages: chat,
+      documentNames: sourceDocuments.filter((d) => enabledDocuments.includes(d.id)).map((d) => d.name),
+    };
+
+    if (!session.messages.length) return;
+    setExportingDocx(true);
+    try {
+      const blob = await generateScientificWordDocument(session);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeTitle = (session.title || "Bao_cao_nghien_cuu")
+        .replace(/[^a-zA-Z0-9_\-\u00C0-\u1EF9]/g, "_")
+        .slice(0, 40);
+      a.download = `BAO_CAO_NGHIEN_CUU_${safeTitle}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert("Không thể xuất file Word: " + (e?.message || "Lỗi không xác định"));
+    } finally {
+      setExportingDocx(false);
+    }
+  };
+
+  const handleExportPdf = (sessionToExport?: ChatSession) => {
+    const session = sessionToExport || historySessions.find((s) => s.id === currentSessionId) || {
+      id: currentSessionId,
+      title: prompt.trim().slice(0, 50) || "Hội thoại nghiên cứu",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      model: selectedModel || status?.aiModel || "deepseek-v4.1-flash",
+      language: selectedLanguage,
+      messages: chat,
+      documentNames: sourceDocuments.filter((d) => enabledDocuments.includes(d.id)).map((d) => d.name),
+    };
+
+    if (!session.messages.length) return;
+    openScientificPdfPrintView(session);
   };
   useEffect(() => {
     loadDocuments().then((documents) => {
@@ -418,11 +644,32 @@ export default function Workspace() {
   const sendChat = async (e: FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || chatBusy || sourceBusy) return;
-    const next = [...chat, { role: "user" as const, content: prompt.trim() }];
+    const now = new Date().toISOString();
+    const next: ChatMessageItem[] = [...chat, { role: "user", content: prompt.trim(), timestamp: now }];
     setChat(next);
     setPrompt("");
     setChatBusy(true);
     setChatError("");
+
+    // Lưu ngay câu hỏi của người dùng vào phiên hiện tại
+    const docNames = sourceDocuments.filter((d) => enabledDocuments.includes(d.id)).map((d) => d.name);
+    const existingSession = historySessions.find((s) => s.id === currentSessionId);
+    const title = existingSession
+      ? existingSession.title
+      : prompt.trim().slice(0, 60) + (prompt.trim().length > 60 ? "…" : "");
+    const inProgressSession: ChatSession = {
+      id: currentSessionId,
+      title,
+      createdAt: existingSession ? existingSession.createdAt : now,
+      updatedAt: now,
+      model: selectedModel || status?.aiModel || "deepseek-v4.1-flash",
+      language: selectedLanguage,
+      messages: next,
+      documentNames: docNames,
+    };
+    void saveChatSession(inProgressSession);
+    setHistorySessions((prev) => [inProgressSession, ...prev.filter((s) => s.id !== currentSessionId)]);
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -431,13 +678,28 @@ export default function Workspace() {
           messages: next.map(({ role, content }) => ({ role, content })),
           skills: selected,
           model: selectedModel || undefined,
+          language: selectedLanguage,
           documents: selectDocumentEvidence(sourceDocuments.filter((document) => enabledDocuments.includes(document.id)), next.slice(-4).filter((message) => message.role === "user").map((message) => message.content).join("\n")),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw Error(data.error);
-      setChat((prev) => [...prev, { role: "assistant", content: data.answer, evidence: data.evidence }]);
+      const aiTime = new Date().toISOString();
+      const fullMessages: ChatMessageItem[] = [
+        ...next,
+        { role: "assistant", content: data.answer, timestamp: aiTime, evidence: data.evidence },
+      ];
+      setChat(fullMessages);
       setLastContext(data.context || null);
+
+      // Cập nhật phiên chat hoàn chỉnh có phản hồi của AI
+      const completedSession: ChatSession = {
+        ...inProgressSession,
+        updatedAt: aiTime,
+        messages: fullMessages,
+      };
+      void saveChatSession(completedSession);
+      setHistorySessions((prev) => [completedSession, ...prev.filter((s) => s.id !== currentSessionId)]);
     } catch (e) {
       setChatError(e instanceof Error ? e.message : "Không thể gọi AI.");
     } finally {
@@ -701,6 +963,28 @@ export default function Workspace() {
             <strong>{navigation.find((n) => n[0] === tab)?.[1]}</strong>
           </div>
           <div className="topbar-right">
+            <div className="theme-toggle-group" role="radiogroup" aria-label="Chế độ giao diện sáng / tối">
+              <button
+                type="button"
+                className={`theme-pill-btn ${theme === "light" ? "active" : ""}`}
+                onClick={() => toggleTheme("light")}
+                title="Chế độ nền Sáng (Light Mode)"
+                aria-label="Chế độ nền Sáng"
+              >
+                <Sun size={15} />
+                <span>Sáng</span>
+              </button>
+              <button
+                type="button"
+                className={`theme-pill-btn ${theme === "dark" ? "active" : ""}`}
+                onClick={() => toggleTheme("dark")}
+                title="Chế độ nền Tối dịu mắt, độ tương phản cao chống mỏi mắt (Dark Mode)"
+                aria-label="Chế độ nền Tối"
+              >
+                <Moon size={15} />
+                <span>Tối</span>
+              </button>
+            </div>
             <span className="connection">
               <span className="live-dot" /> Thư viện{" "}
               {catalog ? "sẵn sàng" : "đang tải"}
@@ -1142,24 +1426,95 @@ export default function Workspace() {
                 {status?.availableModels && status.availableModels.length > 0 ? (
                   <select
                     className="model-select"
-                    value={selectedModel || status?.aiModel || ""}
+                    value={selectedModel || status?.aiModel || "deepseek-v4.1-flash"}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     aria-label="Chọn mô hình AI"
                   >
-                    {status.availableModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} {m.tier === "free" ? "★ Free" : ""} ({m.provider || "AI"})
-                      </option>
-                    ))}
+                    <optgroup label="✨ Mô hình Miễn phí (Free Tier - Khuyên dùng)">
+                      {status.availableModels
+                        .filter((m) => m.tier === "free")
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            ★ {m.name} ({m.provider || "AI"})
+                          </option>
+                        ))}
+                    </optgroup>
+                    {status.availableModels.some((m) => m.tier !== "free") && (
+                      <optgroup label="💳 Mô hình Trả phí (Cần nạp credit LarpRouter)">
+                        {status.availableModels
+                          .filter((m) => m.tier !== "free")
+                          .map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name} [Cần credit] ({m.provider || "AI"})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
                 ) : (
                   <code className="active-model-name">
                     {selectedModel || status?.aiModel || "deepseek-v4.1-flash"}
                   </code>
                 )}
+                {status?.isFreeTier && (
+                  <span className="free-tier-pill" title="Tài khoản LarpRouter Free Tier: 2 mô hình DeepSeek V4.1 Flash và GLM 5.3 Flash hoạt động 100% miễn phí">
+                    ★ Free Tier (DeepSeek & GLM)
+                  </span>
+                )}
+                {status?.availableModels?.find((m) => m.id === selectedModel)?.tier === "paid" && (
+                  <span className="paid-warning-pill" title="Mô hình này yêu cầu tài khoản trả phí có credit. Hệ thống sẽ tự động fallback sang DeepSeek V4.1 Flash nếu tài khoản chưa nạp credit.">
+                    ⚠️ Cần credit (Tự động fallback Free tier)
+                  </span>
+                )}
                 {status?.aiProvider && (
                   <span className="provider-pill">Đấu nối: {status.aiProvider}</span>
                 )}
+                {status?.experiential?.configured && (
+                  <span className="decision-pill" title="Mô hình OpenAI GPT-6 Luna Decisions đã sẵn sàng thẩm định xác suất">
+                    ⚡ GPT-6 Luna Decisions
+                  </span>
+                )}
+                <div className="language-selector-group">
+                  <div className="model-badge">
+                    <Globe2 size={16} />
+                    <span className="lang-label">Ngôn ngữ:</span>
+                  </div>
+                  <div className="language-pills" role="radiogroup" aria-label="Ngôn ngữ phản hồi">
+                    <button
+                      type="button"
+                      className={`lang-pill-btn ${selectedLanguage === "vi" ? "active" : ""}`}
+                      onClick={() => changeLanguage("vi")}
+                      title="Mặc định: Bắt buộc trả lời 100% bằng Tiếng Việt"
+                    >
+                      🇻🇳 Tiếng Việt
+                    </button>
+                    <button
+                      type="button"
+                      className={`lang-pill-btn ${selectedLanguage === "en" ? "active" : ""}`}
+                      onClick={() => changeLanguage("en")}
+                      title="Chuyển sang trả lời bằng tiếng Anh (English)"
+                    >
+                      🇬🇧 English
+                    </button>
+                    <button
+                      type="button"
+                      className={`lang-pill-btn ${selectedLanguage === "zh" ? "active" : ""}`}
+                      onClick={() => changeLanguage("zh")}
+                      title="Chuyển sang trả lời bằng tiếng Trung (中文)"
+                    >
+                      🇨🇳 中文
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="history-trigger-btn"
+                  onClick={() => setShowHistoryModal(true)}
+                  title="Xem và quản lý nhật ký các phiên đối thoại đã lưu"
+                >
+                  <History size={15} />
+                  <span>Nhật ký chat ({historySessions.length})</span>
+                </button>
               </div>
               <ResearchSources documents={sourceDocuments} enabled={enabledDocuments} onDocuments={setSourceDocuments}
                 onEnabled={setEnabledDocuments} onView={setSourceLocation} onBusy={setSourceBusy} query={prompt || chat.filter((message) => message.role === "user").at(-1)?.content || ""} />
@@ -1243,7 +1598,9 @@ export default function Workspace() {
                       rows={3}
                     />
                     <div>
-                      <span>Kiểm chứng độc lập mọi kết quả và trích dẫn.</span>
+                      <span>
+                        Trả lời: <strong>{selectedLanguage === "vi" ? "🇻🇳 Tiếng Việt" : selectedLanguage === "en" ? "🇬🇧 English" : "🇨🇳 中文"}</strong> · Kiểm chứng độc lập mọi kết quả và trích dẫn.
+                      </span>
                       <button
                         className="button primary"
                         disabled={
@@ -1262,33 +1619,57 @@ export default function Workspace() {
                   <div className="chat-footer">
                     <button
                       className="text-button"
-                      onClick={() => {
-                        setChat([]);
-                        setLastContext(null);
-                        setChatError("");
-                      }}
+                      onClick={startNewChat}
                       disabled={chatBusy}
                     >
-                      Cuộc trò chuyện mới
+                      <Plus size={14} /> Cuộc trò chuyện mới
                     </button>
                     <button
                       className="text-button"
-                      disabled={!chat.length}
-                      onClick={() =>
-                        download(
-                          "research-conversation.md",
-                          chat
-                            .map(
-                              (m) =>
-                                `## ${m.role === "user" ? "Bạn" : "Research Agent"}\n\n${m.content}`,
-                            )
-                            .join("\n\n"),
-                          "text/markdown",
-                        )
-                      }
+                      onClick={() => setShowHistoryModal(true)}
                     >
-                      Xuất hội thoại <ArrowDownToLine size={14} />
+                      <History size={14} /> Xem nhật ký chat ({historySessions.length})
                     </button>
+                    <div className="export-btn-group" role="group" aria-label="Tùy chọn xuất báo cáo khoa học">
+                      <button
+                        className="text-button export-action-btn export-word-btn"
+                        disabled={!chat.length || exportingDocx}
+                        onClick={() => void handleExportWord()}
+                        title="Xuất hồ sơ hội thoại ra file Word (.docx) chuẩn báo cáo khoa học (Quốc hiệu, Tiêu đề, Bảng tra cứu bằng chứng, Khối chữ ký)"
+                      >
+                        <FileText size={14} /> {exportingDocx ? "Đang tạo .docx…" : "Xuất Word (.docx)"}
+                      </button>
+                      <button
+                        className="text-button export-action-btn export-pdf-btn"
+                        disabled={!chat.length}
+                        onClick={() => handleExportPdf()}
+                        title="Mở bản in chuẩn A4 học thuật để in hoặc Lưu dưới dạng PDF vector chất lượng cao"
+                      >
+                        <Printer size={14} /> Xuất PDF (A4)
+                      </button>
+                      <button
+                        className="text-button export-action-btn"
+                        disabled={!chat.length}
+                        onClick={() => {
+                          const currentSession = historySessions.find((s) => s.id === currentSessionId);
+                          if (currentSession) {
+                            const md = exportSessionToMarkdown(currentSession);
+                            download(`chat-${currentSession.title.slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, "_")}.md`, md, "text/markdown");
+                          } else {
+                            download(
+                              "research-conversation.md",
+                              chat
+                                .map((m) => `## ${m.role === "user" ? "Bạn" : "Research Agent"}\n\n${m.content}`)
+                                .join("\n\n"),
+                              "text/markdown",
+                            );
+                          }
+                        }}
+                        title="Tải về file văn bản Markdown .md"
+                      >
+                        <ArrowDownToLine size={14} /> Markdown
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <aside className="context-panel">
@@ -1730,6 +2111,7 @@ export default function Workspace() {
                   </>
                 )}
               </section>
+
               <section className="tool-card">
                 <div className="section-heading">
                   <div>
@@ -1802,6 +2184,196 @@ export default function Workspace() {
                     >
                       Xuất kết quả <ArrowDownToLine size={15} />
                     </button>
+                  </div>
+                )}
+              </section>
+
+              <section className="tool-card decision-card">
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">03 / DECISION & SAFETY VALIDATION</span>
+                    <h2>Thẩm định Quyết định & Giả thuyết (GPT-6 Luna Decisions)</h2>
+                  </div>
+                  <span className="source-tag">
+                    OpenAI · Experiential Labs
+                  </span>
+                </div>
+                <p>
+                  Mô hình <strong>GPT-6 Luna Decisions</strong> chuyên biệt cho việc đánh giá
+                  xác suất toán học, thẩm định độ tin cậy của giả thuyết khoa học, đề xuất thay đổi hóa chất và độ an toàn quy trình.
+                </p>
+
+                <div className="decision-mode-bar">
+                  <span className="decision-mode-label">Chế độ thẩm định:</span>
+                  <div className="decision-mode-pills">
+                    <button
+                      type="button"
+                      className={`decision-mode-btn ${decisionMode === "safety" ? "active" : ""}`}
+                      onClick={() => setDecisionMode("safety")}
+                    >
+                      🛡️ An toàn hóa chất & quy trình
+                    </button>
+                    <button
+                      type="button"
+                      className={`decision-mode-btn ${decisionMode === "hypothesis" ? "active" : ""}`}
+                      onClick={() => setDecisionMode("hypothesis")}
+                    >
+                      🧪 Khả thi giả thuyết nghiên cứu
+                    </button>
+                    <button
+                      type="button"
+                      className={`decision-mode-btn ${decisionMode === "review" ? "active" : ""}`}
+                      onClick={() => setDecisionMode("review")}
+                    >
+                      📑 Phê duyệt thay đổi (General Review)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="decision-sample-prompts">
+                  <span>Mẫu nhanh:</span>
+                  <button
+                    type="button"
+                    className="sample-prompt-pill"
+                    onClick={() => {
+                      setDecisionMode("safety");
+                      setDecisionInput("Đề xuất thay đổi tỷ lệ chất tẩy rửa công đoạn phun: Sử dụng chất 297 nguyên chất 100%, không pha thêm 289 (30%) và 299A (2%).");
+                    }}
+                  >
+                    Vệ sinh: dùng 297 100%
+                  </button>
+                  <button
+                    type="button"
+                    className="sample-prompt-pill"
+                    onClick={() => {
+                      setDecisionMode("safety");
+                      setDecisionInput("Khu vực chứa hóa chất dễ cháy MEK và IPA: dự kiến tắt quạt hút cưỡng bức trong 2 giờ để bảo dưỡng định kỳ trong khi công nhân vẫn thao tác rửa khuôn.");
+                    }}
+                  >
+                    Tắt thông gió khi rửa khuôn
+                  </button>
+                  <button
+                    type="button"
+                    className="sample-prompt-pill"
+                    onClick={() => {
+                      setDecisionMode("hypothesis");
+                      setDecisionInput("Giả thuyết: Bổ sung chất hoạt động bề mặt không ion (non-ionic surfactant) vào dung dịch tẩy rửa sẽ giảm sức căng bề mặt và tăng hiệu quả tẩy dầu mỡ kim loại lên 40%.");
+                    }}
+                  >
+                    Bổ sung chất hoạt động bề mặt
+                  </button>
+                </div>
+
+                <div className="decision-input-group">
+                  <textarea
+                    rows={4}
+                    className="decision-textarea"
+                    placeholder="Mô tả đề xuất, công thức hóa học, thay đổi quy trình hoặc giả thuyết nghiên cứu cần thẩm định..."
+                    value={decisionInput}
+                    onChange={(e) => setDecisionInput(e.target.value)}
+                  />
+                  <div className="decision-action-bar">
+                    <button
+                      className="primary"
+                      disabled={decisionBusy || !decisionInput.trim()}
+                      onClick={() => runDecisionEvaluation()}
+                    >
+                      {decisionBusy ? "Đang thẩm định xác suất…" : "⚡ Thẩm định với GPT-6 Luna Decisions"}
+                    </button>
+                    {decisionInput && (
+                      <button
+                        className="text-button"
+                        onClick={() => {
+                          setDecisionInput("");
+                          setDecisionResult(null);
+                        }}
+                      >
+                        Xóa nội dung
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {decisionError && (
+                  <div className="notice danger" role="alert" style={{ marginTop: 12 }}>
+                    {decisionError}
+                  </div>
+                )}
+
+                {decisionResult && (
+                  <div className="decision-result-container">
+                    <div className="decision-result-header">
+                      <h3>Kết quả Thẩm định từ GPT-6 Luna</h3>
+                      <span className="eval-meta">
+                        Mô hình: <code>{decisionResult.model}</code> · Nguồn: {decisionResult.provider}
+                      </span>
+                    </div>
+
+                    {decisionResult.answers.map((ans, idx) => {
+                      const isAccept = ans.choice === "accept" || ans.choice === "safe" || ans.choice === "yes";
+                      return (
+                        <div key={idx} className={`decision-verdict-box ${isAccept ? "accept" : "review"}`}>
+                          <div className="verdict-banner">
+                            <span className="verdict-icon">{isAccept ? "✅" : "⚠️"}</span>
+                            <div>
+                              <h4>
+                                {isAccept
+                                  ? "KẾT LUẬN: ĐỦ ĐIỀU KIỆN CHẤP THUẬN (ACCEPT / FEASIBLE)"
+                                  : "KẾT LUẬN: CẦN THẨM ĐỊNH LẠI & CẢNH BÁO RỦI RO (REVIEW REQUIRED)"}
+                              </h4>
+                              <p className="verdict-desc">
+                                {isAccept
+                                  ? "Mô hình nhận định đề xuất có căn cứ khoa học/an toàn đầy đủ và độ tin cậy cao."
+                                  : "Mô hình phát hiện thiếu bằng chứng kiểm chứng, tiềm ẩn rủi ro tương thích hoặc nguy cơ an toàn; bắt buộc phải rà soát lại SDS/MSDS."}
+                              </p>
+                            </div>
+                            {typeof ans.confidence === "number" && (
+                              <div className="confidence-badge">
+                                <span className="conf-label">Độ tin cậy</span>
+                                <span className="conf-value">{Math.round(ans.confidence * 100)}%</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {ans.probabilities && ans.probabilities.length > 0 && (
+                            <div className="probabilities-breakdown">
+                              <span className="prob-title">Phân phối xác suất quyết định:</span>
+                              <div className="prob-bars">
+                                {ans.probabilities.map((p, pIdx) => (
+                                  <div key={pIdx} className="prob-item">
+                                    <div className="prob-label-row">
+                                      <span className="prob-name">
+                                        {p.value === "accept" || p.value === "safe" || p.value === "yes"
+                                          ? "✅ Chấp thuận (Accept/Safe)"
+                                          : "⚠️ Xem xét lại (Review/Risks)"}
+                                      </span>
+                                      <span className="prob-pct">{Math.round(p.probability * 100)}%</span>
+                                    </div>
+                                    <div className="prob-track">
+                                      <div
+                                        className={`prob-fill ${
+                                          p.value === "accept" || p.value === "safe" || p.value === "yes"
+                                            ? "fill-green"
+                                            : "fill-amber"
+                                        }`}
+                                        style={{ width: `${Math.round(p.probability * 100)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {decisionResult.usage && (
+                      <div className="decision-footer-meta">
+                        <span>Tổng tokens xử lý: {decisionResult.usage.total_tokens}</span>
+                        <span>Thời điểm thẩm định: {new Date(decisionResult.evaluatedAt).toLocaleTimeString("vi-VN")}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
@@ -2101,6 +2673,29 @@ export default function Workspace() {
                   </p>
                 </>
               )}
+              <div style={{ margin: "16px 0", padding: "14px", borderRadius: "10px", border: "1px solid var(--line)", background: "var(--surface-alt)" }}>
+                <span className="field-label" style={{ display: "block", marginBottom: 8, fontSize: "11px", fontWeight: 700 }}>
+                  CHẾ ĐỘ GIAO DIỆN (THEME)
+                </span>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    type="button"
+                    className={`button ${theme === "light" ? "primary" : "secondary"}`}
+                    onClick={() => toggleTheme("light")}
+                    style={{ flex: 1, minHeight: 38 }}
+                  >
+                    <Sun size={16} /> Nền Sáng
+                  </button>
+                  <button
+                    type="button"
+                    className={`button ${theme === "dark" ? "primary" : "secondary"}`}
+                    onClick={() => toggleTheme("dark")}
+                    style={{ flex: 1, minHeight: 38 }}
+                  >
+                    <Moon size={16} /> Nền Tối (Chống chói)
+                  </button>
+                </div>
+              </div>
               <details open={!status?.ai}>
                 <summary>Cấu hình máy chủ và triển khai</summary>
                 <p>
@@ -2198,6 +2793,185 @@ export default function Workspace() {
                   : "Bộ nhớ từng instance; cấu hình Redis hoặc Vercel WAF cho môi trường public"}
                 .
               </p>
+            </div>
+          </section>
+        </div>
+      )}
+      {showHistoryModal && (
+        <div className="modal-backdrop" onClick={() => setShowHistoryModal(false)}>
+          <section
+            className="history-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <h2 id="history-title" style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0, color: "var(--ink)" }}>
+                  <History size={20} color="var(--teal)" /> Nhật ký hội thoại nghiên cứu
+                </h2>
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  Đã lưu {historySessions.length} phiên đối thoại · Tự động đồng bộ tại trình duyệt này
+                </span>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Đóng nhật ký"
+                onClick={() => setShowHistoryModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="history-search-bar">
+              <input
+                type="text"
+                placeholder="Tìm kiếm từ khóa câu hỏi, hóa chất, số CAS trong nhật ký..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+              />
+            </div>
+
+            <div className="history-list">
+              {historySessions.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--muted)" }}>
+                  <Clock size={36} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+                  <p style={{ margin: 0, fontWeight: 500, color: "var(--ink)" }}>Chưa có phiên đối thoại nào được lưu.</p>
+                  <small style={{ color: "var(--muted)" }}>Khi bạn đặt câu hỏi cho trợ lý AI, nhật ký sẽ tự động được lưu lại tại đây.</small>
+                </div>
+              ) : (
+                historySessions
+                  .filter(
+                    (s) =>
+                      s.title.toLowerCase().includes(historySearch.toLowerCase()) ||
+                      s.messages.some((m) => m.content.toLowerCase().includes(historySearch.toLowerCase())),
+                  )
+                  .map((s) => {
+                    const isActive = s.id === currentSessionId && chat.length > 0;
+                    return (
+                      <div
+                        key={s.id}
+                        className={`history-item-card ${isActive ? "active" : ""}`}
+                        onClick={() => restoreSession(s)}
+                      >
+                        <div className="history-item-info">
+                          <div className="history-item-title">
+                            {isActive ? "🟢 " : ""}
+                            {s.title || "Cuộc trò chuyện nghiên cứu"}
+                          </div>
+                          <div className="history-item-meta">
+                            <span>🕒 {new Date(s.updatedAt).toLocaleString("vi-VN")}</span>
+                            <span>💬 {s.messages.length} tin nhắn</span>
+                            <span style={{ background: "var(--surface-alt)", border: "1px solid var(--line)", padding: "1px 6px", borderRadius: "4px" }}>
+                              {s.model}
+                            </span>
+                            <span>
+                              {s.language === "vi" ? "🇻🇳 Tiếng Việt" : s.language === "zh" ? "🇨🇳 中文" : "🇬🇧 English"}
+                            </span>
+                            {s.documentNames && s.documentNames.length > 0 && (
+                              <span style={{ color: "var(--teal)" }}>
+                                📎 {s.documentNames.slice(0, 2).join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="history-item-actions">
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              restoreSession(s);
+                            }}
+                            title="Mở lại cuộc trò chuyện này"
+                          >
+                            Mở lại
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleExportWord(s);
+                            }}
+                            title="Xuất file Word (.docx) chuẩn báo cáo nghiên cứu khoa học"
+                          >
+                            <FileText size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportPdf(s);
+                            }}
+                            title="Xuất / In PDF (A4) chuẩn nghiên cứu khoa học"
+                          >
+                            <Printer size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const md = exportSessionToMarkdown(s);
+                              download(
+                                `chat-${s.title.slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, "_")}.md`,
+                                md,
+                                "text/markdown",
+                              );
+                            }}
+                            title="Tải về file Markdown .md"
+                          >
+                            <ArrowDownToLine size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={(e) => void removeSession(s.id, e)}
+                            title="Xóa phiên này"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div className="document-footer" style={{ borderTop: "1px solid var(--line)", padding: "12px 20px" }}>
+              <span style={{ fontSize: "12px", color: "#64748b" }}>
+                Dữ liệu nhật ký được lưu trữ an toàn trong IndexedDB của trình duyệt.
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {historySessions.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => {
+                        const json = JSON.stringify(historySessions, null, 2);
+                        download(`all-chat-history-${Date.now()}.json`, json, "application/json");
+                      }}
+                    >
+                      <ArrowDownToLine size={14} /> Xuất toàn bộ JSON
+                    </button>
+                    <button
+                      type="button"
+                      className="button danger"
+                      style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #f87171" }}
+                      onClick={() => void clearHistory()}
+                    >
+                      <Trash2 size={14} /> Xóa tất cả
+                    </button>
+                  </>
+                )}
+                <button type="button" className="button primary" onClick={() => setShowHistoryModal(false)}>
+                  Đóng
+                </button>
+              </div>
             </div>
           </section>
         </div>

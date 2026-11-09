@@ -33,7 +33,7 @@ export async function readResearchFile(file: File, options: ReadOptions = {}): P
   const units: Omit<DocumentUnit, "id">[] = [];
   const warnings: string[] = [];
   let unitCount = 0, processedCount = 0, ocr: OcrWorker | undefined;
-  const stopOcr = () => { if (ocr) void ocr.terminate(); };
+  const stopOcr = () => { if (ocr) void ocr.terminate().catch(() => {}); };
   options.signal?.addEventListener("abort", stopOcr, { once: true });
   const recognize = async (image: HTMLCanvasElement | Blob) => {
     checkAbort(options);
@@ -163,6 +163,6 @@ export async function readResearchFile(file: File, options: ReadOptions = {}): P
     throw error;
   } finally {
     options.signal?.removeEventListener("abort", stopOcr);
-    if (ocr && !options.signal?.aborted) await ocr.terminate();
+    if (ocr) await ocr.terminate().catch(() => {});
   }
 }
