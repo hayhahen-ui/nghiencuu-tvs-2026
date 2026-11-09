@@ -10,18 +10,37 @@ import {
   LoaderCircle,
   Paperclip,
   ScanLine,
+  Search,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { deleteDocument, saveDocument } from "@/lib/document-store";
+import {
+  deleteDocument,
+  saveDocument,
+  exportDocumentsBackup,
+  importDocumentsBackup,
+  requestPersistentStorage,
+} from "@/lib/document-store";
 import { MAX_DOCUMENTS, selectDocumentEvidence, type StoredDocument } from "@/lib/research-documents";
 import { analyzeMsds, GHS_SECTIONS_DEF, type MsdsAnalysisResult } from "@/lib/msds-analyzer";
 
 export type SourceLocation = { documentId: string; unitId?: string };
 function sizeLabel(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+}
+
+function formatImportDate(isoString?: string): string {
+  if (!isoString) return "";
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+  } catch {
+    return "";
+  }
 }
 
 export default function ResearchSources({
@@ -42,20 +61,42 @@ export default function ResearchSources({
   query: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const backupInput = useRef<HTMLInputElement>(null);
   const controller = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ file: string; detail: string } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [ocrAll, setOcrAll] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [filterQuery, setFilterQuery] = useState("");
 
   useEffect(() => () => { controller.current?.abort(); onBusy(false); }, [onBusy]);
+
+  useEffect(() => {
+    // Đảm bảo trình duyệt cấp quyền lưu trữ vĩnh viễn
+    void requestPersistentStorage();
+  }, []);
 
   const evidence = selectDocumentEvidence(documents.filter((doc) => enabled.includes(doc.id)), query);
   const totalUnits = evidence.reduce((n, doc) => n + doc.totalUnits, 0);
   const sentUnits = evidence.reduce((n, doc) => n + doc.units.length, 0);
+
+  const filteredDocuments = useMemo(() => {
+    if (!filterQuery.trim()) return documents;
+    const q = filterQuery.toLowerCase().trim();
+    return documents.filter((doc) => {
+      if (doc.name.toLowerCase().includes(q)) return true;
+      const msds = analyzeMsds(doc);
+      if (msds.chemical.name?.toLowerCase().includes(q)) return true;
+      if (msds.chemical.casNumbers.some((cas) => cas.toLowerCase().includes(q))) return true;
+      if (msds.chemical.unNumbers.some((un) => un.toLowerCase().includes(q))) return true;
+      if (msds.chemical.hazardCodes.some((h) => h.code.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [documents, filterQuery]);
 
   const importFiles = async (files: File[], forceOcr = false) => {
     if (busyRef.current || !files.length) return;
@@ -94,6 +135,8 @@ export default function ResearchSources({
           currentEnabled = [...new Set([...currentEnabled, stored.id])];
           onDocuments(currentDocuments);
           onEnabled(currentEnabled);
+          setNotice(`Đã lưu trữ vĩnh viễn tài liệu "${file.name}" vào bộ nhớ máy.`);
+          setTimeout(() => setNotice(null), 4000);
         } catch (error) {
           if (abort.signal.aborted) break;
           setErrors((previous) => [...previous, `${file.name}: ${error instanceof Error ? error.message : "Không đọc được tài liệu."}`]);
@@ -109,11 +152,16 @@ export default function ResearchSources({
     }
   };
 
-  const remove = async (id: string) => {
+  const remove = async (id: string, name: string) => {
+    if (typeof window !== "undefined" && !window.confirm(`Bạn có chắc chắn muốn xóa tài liệu MSDS "${name}" khỏi bộ nhớ không?\n(Chỉ xóa khi tài liệu đã hết hạn hoặc không còn dùng nữa)`)) {
+      return;
+    }
     try {
       await deleteDocument(id);
       onDocuments(documents.filter((doc) => doc.id !== id));
       onEnabled(enabled.filter((value) => value !== id));
+      setNotice(`Đã xóa vĩnh viễn tài liệu "${name}" khỏi bộ nhớ.`);
+      setTimeout(() => setNotice(null), 3000);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Không xóa được file."]);
     }
@@ -160,6 +208,70 @@ export default function ResearchSources({
 
       {expanded && (
         <>
+          <div className="source-storage-info-bar">
+            <div className="storage-status-pill">
+              <ShieldCheck size={18} />
+              <span>
+                <strong>Lưu trữ vĩnh viễn (IndexedDB):</strong> Dữ liệu & kết quả OCR được lưu cục bộ an toàn trên máy bạn. Tải lên 1 lần là lưu vĩnh viễn, không mất khi tắt trình duyệt.
+              </span>
+            </div>
+            {documents.length > 0 && (
+              <div className="storage-actions">
+                <button
+                  type="button"
+                  className="storage-action-btn"
+                  onClick={() => exportDocumentsBackup(documents)}
+                  title="Sao lưu toàn bộ thư viện MSDS ra file .json để dự phòng hoặc chuyển sang máy khác"
+                >
+                  <Download size={13} /> Sao lưu ({documents.length})
+                </button>
+                <button
+                  type="button"
+                  className="storage-action-btn"
+                  onClick={() => backupInput.current?.click()}
+                  title="Khôi phục thư viện MSDS từ file sao lưu .json"
+                >
+                  <Upload size={13} /> Khôi phục
+                </button>
+                <input
+                  ref={backupInput}
+                  type="file"
+                  accept=".json"
+                  className="visually-hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      setBusy(true);
+                      setProgress({ file: file.name, detail: "Đang nạp file sao lưu thư viện…" });
+                      const restored = await importDocumentsBackup(file);
+                      const existingIds = new Set(documents.map((d) => d.id));
+                      const newDocs = restored.filter((d) => !existingIds.has(d.id));
+                      const merged = [...documents, ...newDocs];
+                      onDocuments(merged);
+                      onEnabled([...new Set([...enabled, ...newDocs.map((d) => d.id)])]);
+                      setNotice(`Đã khôi phục thành công ${newDocs.length} tài liệu vào bộ nhớ.`);
+                      setTimeout(() => setNotice(null), 4000);
+                    } catch (err) {
+                      setErrors([err instanceof Error ? err.message : "Lỗi nạp file sao lưu."]);
+                    } finally {
+                      setBusy(false);
+                      setProgress(null);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {notice && (
+            <div className="notice success" role="status" style={{ margin: "12px 0 0" }}>
+              <CheckCircle2 size={16} />
+              <div><p>{notice}</p></div>
+            </div>
+          )}
+
           <div
             className={"source-dropzone " + (dragging ? "dragging" : "")}
             onDragOver={(event) => { event.preventDefault(); if (!busy) setDragging(true); }}
@@ -240,47 +352,82 @@ export default function ResearchSources({
           )}
 
           {documents.length > 0 && (
-            <div className="source-file-list">
-              {documents.map((doc) => {
-                const ocrPages = doc.units.filter((unit) => unit.method === "ocr").length;
-                const msds = analyzeMsds(doc);
+            <>
+              <div className="source-search-filter-row">
+                <div className="source-search-box">
+                  <Search size={15} />
+                  <input
+                    type="text"
+                    placeholder="Tìm tài liệu theo tên, số CAS, mã GHS... để xem hoặc xóa khi hết hạn"
+                    value={filterQuery}
+                    onChange={(e) => setFilterQuery(e.target.value)}
+                    aria-label="Tìm kiếm tài liệu đã lưu"
+                  />
+                  {filterQuery && (
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={() => setFilterQuery("")}
+                      title="Xóa tìm kiếm"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <span className="source-filter-count">
+                  {filterQuery ? `Tìm thấy ${filteredDocuments.length}/${documents.length} tài liệu` : `Đang lưu: ${documents.length} tài liệu`}
+                </span>
+              </div>
 
-                return (
-                  <article className="source-file-card" key={doc.id}>
-                    <div className="source-file-top">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={enabled.includes(doc.id)}
-                          disabled={busy}
-                          onChange={(event) =>
-                            onEnabled(event.target.checked ? [...enabled, doc.id] : enabled.filter((id) => id !== doc.id))
-                          }
-                          aria-label={"Dùng làm căn cứ: " + doc.name}
-                        />
-                        {doc.format === "xls" || doc.format === "xlsx" || doc.format === "csv" ? (
-                          <FileSpreadsheet size={22} />
-                        ) : (
-                          <FileText size={22} />
-                        )}
-                        <span>
-                          <strong>{doc.name}</strong>
-                          <small>
-                            {doc.format.toUpperCase()} · {sizeLabel(doc.size)} · Đã xử lý {doc.processedCount}/{doc.unitCount}{" "}
-                            {doc.format === "pdf" ? "trang" : "phần"}
-                            {ocrPages ? ` · ${ocrPages} đoạn OCR` : ""}
-                          </small>
-                        </span>
-                      </label>
-                      <button
-                        className="icon-button"
-                        disabled={busy}
-                        aria-label={"Xóa tài liệu " + doc.name}
-                        onClick={() => void remove(doc.id)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+              {filteredDocuments.length === 0 ? (
+                <div className="source-no-results">
+                  <p>Không tìm thấy tài liệu phù hợp với &ldquo;{filterQuery}&rdquo;.</p>
+                  <button className="text-button" onClick={() => setFilterQuery("")}>Xem tất cả ({documents.length})</button>
+                </div>
+              ) : (
+                <div className="source-file-list">
+                  {filteredDocuments.map((doc) => {
+                    const ocrPages = doc.units.filter((unit) => unit.method === "ocr").length;
+                    const msds = analyzeMsds(doc);
+
+                    return (
+                      <article className="source-file-card" key={doc.id}>
+                        <div className="source-file-top">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={enabled.includes(doc.id)}
+                              disabled={busy}
+                              onChange={(event) =>
+                                onEnabled(event.target.checked ? [...enabled, doc.id] : enabled.filter((id) => id !== doc.id))
+                              }
+                              aria-label={"Dùng làm căn cứ: " + doc.name}
+                            />
+                            {doc.format === "xls" || doc.format === "xlsx" || doc.format === "csv" ? (
+                              <FileSpreadsheet size={22} />
+                            ) : (
+                              <FileText size={22} />
+                            )}
+                            <span>
+                              <strong>{doc.name}</strong>
+                              <small>
+                                {doc.format.toUpperCase()} · {sizeLabel(doc.size)} · Đã xử lý {doc.processedCount}/{doc.unitCount}{" "}
+                                {doc.format === "pdf" ? "trang" : "phần"}
+                                {ocrPages ? ` · ${ocrPages} đoạn OCR` : ""}
+                                {doc.importedAt ? ` · Lưu ngày: ${formatImportDate(doc.importedAt)}` : ""}
+                              </small>
+                            </span>
+                          </label>
+                          <button
+                            className="icon-button"
+                            disabled={busy}
+                            title="Xóa tài liệu khỏi bộ nhớ (khi hết hạn)"
+                            aria-label={"Xóa tài liệu " + doc.name}
+                            onClick={() => void remove(doc.id, doc.name)}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
 
                     {msds.isMsds && (
                       <div className="msds-badge-container">
@@ -332,7 +479,9 @@ export default function ResearchSources({
                   </article>
                 );
               })}
-            </div>
+                </div>
+              )}
+            </>
           )}
 
           <div className="sources-footer">
