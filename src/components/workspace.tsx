@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Activity,
+  AlertCircle,
   Atom,
   BrainCircuit,
   ChartNoAxesCombined,
@@ -273,6 +274,15 @@ export default function Workspace() {
   const [customAiKey, setCustomAiKey] = useState("");
   const [customBaseUrl, setCustomBaseUrl] = useState("");
   const [keySavedNotice, setKeySavedNotice] = useState("");
+  const [testLoading, setTestLoading] = useState(false);
+  const [testResults, setTestResults] = useState<Array<{
+    provider: string;
+    status: "success" | "error";
+    latencyMs: number;
+    message: string;
+    models?: string[];
+  }> | null>(null);
+  const [saveSuccessNotice, setSaveSuccessNotice] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -281,6 +291,60 @@ export default function Workspace() {
       setCustomBaseUrl(localStorage.getItem("custom_base_url") || "");
     }
   }, []);
+
+  const handleSaveApiKeys = () => {
+    let cleanedUrl = customBaseUrl.trim();
+    cleanedUrl = cleanedUrl.replace(/\/decisions\/?$/, "");
+    cleanedUrl = cleanedUrl.replace(/\/chat\/completions\/?$/, "");
+    cleanedUrl = cleanedUrl.replace(/\/models\/?$/, "");
+    cleanedUrl = cleanedUrl.replace(/\/+$/, "");
+    setCustomBaseUrl(cleanedUrl);
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("custom_exp_key", customExpKey.trim());
+      localStorage.setItem("custom_ai_key", customAiKey.trim());
+      localStorage.setItem("custom_base_url", cleanedUrl);
+    }
+    setSaveSuccessNotice("Đã lưu toàn bộ cấu hình API Keys thành công!");
+    setTimeout(() => setSaveSuccessNotice(""), 4000);
+  };
+
+  const handleTestConnection = async () => {
+    setTestLoading(true);
+    setTestResults(null);
+    try {
+      let cleanedUrl = customBaseUrl.trim();
+      cleanedUrl = cleanedUrl.replace(/\/decisions\/?$/, "");
+      cleanedUrl = cleanedUrl.replace(/\/chat\/completions\/?$/, "");
+      cleanedUrl = cleanedUrl.replace(/\/models\/?$/, "");
+      cleanedUrl = cleanedUrl.replace(/\/+$/, "");
+      setCustomBaseUrl(cleanedUrl);
+
+      const res = await fetch("/api/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expKey: customExpKey.trim(),
+          aiKey: customAiKey.trim(),
+          baseUrl: cleanedUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Kiểm tra thất bại.");
+      setTestResults(data.results || []);
+    } catch (err: any) {
+      setTestResults([
+        {
+          provider: "Kiểm tra kết nối",
+          status: "error",
+          latencyMs: 0,
+          message: err?.message || "Lỗi kiểm tra kết nối.",
+        },
+      ]);
+    } finally {
+      setTestLoading(false);
+    }
+  };
   const [lastContext, setLastContext] = useState<SkillContextInfo | null>(null);
   const [analysis, setAnalysis] = useState<ReturnType<typeof describe> | null>(
     null,
@@ -2737,14 +2801,14 @@ export default function Workspace() {
                 </div>
               </div>
 
-              <div style={{ margin: "16px 0", padding: "14px", borderRadius: "10px", border: "1px solid var(--line)", background: "var(--surface-alt)" }}>
+              <div style={{ margin: "16px 0", padding: "16px", borderRadius: "10px", border: "1px solid var(--line)", background: "var(--surface-alt)" }}>
                 <span className="field-label" style={{ display: "block", marginBottom: 6, fontSize: "11px", fontWeight: 700 }}>
                   QUẢN LÝ NHIỀU NGUỒN API KEY (MULTI-PROVIDER)
                 </span>
-                <p style={{ fontSize: "12px", color: "var(--muted)", margin: "0 0 10px" }}>
+                <p style={{ fontSize: "12px", color: "var(--muted)", margin: "0 0 12px" }}>
                   Hệ thống hỗ trợ kết nối đồng thời nhiều dịch vụ AI. Bạn có thể lưu key trực tiếp trên máy hoặc cấu hình trên Vercel.
                 </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   <div>
                     <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, marginBottom: 4 }}>
                       1. Experiential Labs API Key (Claude, GPT-4.1, DeepSeek & GPT-6 Luna)
@@ -2753,16 +2817,11 @@ export default function Workspace() {
                       type="password"
                       placeholder="xpl_403f9644e5ecda298ae346a48694448ec6c0d2a2..."
                       value={customExpKey}
-                      onChange={(e) => {
-                        setCustomExpKey(e.target.value);
-                        localStorage.setItem("custom_exp_key", e.target.value);
-                        setKeySavedNotice("Đã lưu khóa API Experiential Labs vào bộ nhớ trình duyệt.");
-                        setTimeout(() => setKeySavedNotice(""), 3000);
-                      }}
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
+                      onChange={(e) => setCustomExpKey(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
                     />
                     <small style={{ color: "var(--muted)", fontSize: "11px", display: "block", marginTop: 3 }}>
-                      Đang kích hoạt: Hỗ trợ mô hình <strong>gpt-6-luna-decisions</strong>, <strong>claude-haiku-4.5</strong> và <strong>deepseek-v4.1-flash</strong>
+                      Đang kích hoạt: Hỗ trợ mô hình <strong>gpt-6-luna-decisions</strong>, <strong>claude-haiku-4.5</strong>, <strong>deepseek-v4.1-flash</strong> và <strong>gpt-4.1-mini</strong>
                     </small>
                   </div>
                   <div>
@@ -2773,13 +2832,8 @@ export default function Workspace() {
                       type="password"
                       placeholder="lrsk-... hoặc sk-..."
                       value={customAiKey}
-                      onChange={(e) => {
-                        setCustomAiKey(e.target.value);
-                        localStorage.setItem("custom_ai_key", e.target.value);
-                        setKeySavedNotice("Đã lưu khóa API bổ sung vào bộ nhớ trình duyệt.");
-                        setTimeout(() => setKeySavedNotice(""), 3000);
-                      }}
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
+                      onChange={(e) => setCustomAiKey(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
                     />
                   </div>
                   <div>
@@ -2790,18 +2844,73 @@ export default function Workspace() {
                       type="text"
                       placeholder="https://api.experientiallabs.ai/v1 hoặc https://api.openai.com/v1"
                       value={customBaseUrl}
-                      onChange={(e) => {
-                        setCustomBaseUrl(e.target.value);
-                        localStorage.setItem("custom_base_url", e.target.value);
-                        setKeySavedNotice("Đã lưu Base URL tùy chỉnh.");
-                        setTimeout(() => setKeySavedNotice(""), 3000);
-                      }}
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
+                      onChange={(e) => setCustomBaseUrl(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
                     />
+                    <small style={{ color: "var(--muted)", fontSize: "11px", display: "block", marginTop: 3 }}>
+                      * Lưu ý: Chỉ nhập URL gốc (ví dụ: <code>https://api.experientiallabs.ai/v1</code>). Hệ thống tự động ghép endpoint phù hợp.
+                    </small>
                   </div>
-                  {keySavedNotice && (
-                    <div style={{ color: "#10b981", fontSize: "11.5px", display: "flex", alignItems: "center", gap: 5 }}>
-                      <Check size={14} /> {keySavedNotice}
+
+                  {/* Nút bấm Lưu cấu hình và Kiểm tra kết nối */}
+                  <div style={{ display: "flex", gap: "10px", marginTop: "4px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="button primary"
+                      onClick={handleSaveApiKeys}
+                      style={{ flex: 1, minHeight: 38, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    >
+                      <Check size={16} /> Lưu cấu hình
+                    </button>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled={testLoading}
+                      onClick={handleTestConnection}
+                      style={{ flex: 1, minHeight: 38, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    >
+                      {testLoading ? <LoaderCircle size={16} className="spin" /> : <Activity size={16} />}
+                      {testLoading ? "Đang kiểm tra kết nối..." : "Kiểm tra kết nối"}
+                    </button>
+                  </div>
+
+                  {saveSuccessNotice && (
+                    <div style={{ padding: "8px 12px", background: "rgba(16, 185, 129, 0.15)", border: "1px solid #10b981", borderRadius: 8, color: "#10b981", fontSize: "12px", display: "flex", alignItems: "center", gap: 6 }}>
+                      <Check size={16} /> {saveSuccessNotice}
+                    </div>
+                  )}
+
+                  {testResults && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                      {testResults.map((r, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            fontSize: "12px",
+                            lineHeight: 1.5,
+                            background: r.status === "success" ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)",
+                            border: `1px solid ${r.status === "success" ? "#10b981" : "#ef4444"}`,
+                            color: "var(--ink)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, marginBottom: 3, color: r.status === "success" ? "#10b981" : "#ef4444" }}>
+                            {r.status === "success" ? <Check size={16} /> : <AlertCircle size={16} />}
+                            <span>{r.provider}</span>
+                          </div>
+                          <p style={{ margin: 0 }}>{r.message}</p>
+                          {r.models && r.models.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                              {r.models.map((m) => (
+                                <span key={m} style={{ padding: "2px 6px", borderRadius: 4, background: "var(--surface)", fontSize: "11px", border: "1px solid var(--line)" }}>
+                                  ⚡ {m}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
