@@ -298,14 +298,22 @@ export default function Workspace() {
     cleanedUrl = cleanedUrl.replace(/\/chat\/completions\/?$/, "");
     cleanedUrl = cleanedUrl.replace(/\/models\/?$/, "");
     cleanedUrl = cleanedUrl.replace(/\/+$/, "");
+    // Nếu người dùng nhập URL Experiential Labs vào ô phụ trong khi không có key phụ riêng, tự động dọn gọn
+    if (/experientiallabs\.ai/i.test(cleanedUrl) && !customAiKey.trim()) {
+      cleanedUrl = "";
+    }
     setCustomBaseUrl(cleanedUrl);
 
     if (typeof window !== "undefined") {
       localStorage.setItem("custom_exp_key", customExpKey.trim());
       localStorage.setItem("custom_ai_key", customAiKey.trim());
-      localStorage.setItem("custom_base_url", cleanedUrl);
+      if (cleanedUrl) {
+        localStorage.setItem("custom_base_url", cleanedUrl);
+      } else {
+        localStorage.removeItem("custom_base_url");
+      }
     }
-    setSaveSuccessNotice("Đã lưu toàn bộ cấu hình API Keys thành công!");
+    setSaveSuccessNotice("Đã lưu cấu hình API Keys thành công!");
     setTimeout(() => setSaveSuccessNotice(""), 4000);
   };
 
@@ -318,7 +326,13 @@ export default function Workspace() {
       cleanedUrl = cleanedUrl.replace(/\/chat\/completions\/?$/, "");
       cleanedUrl = cleanedUrl.replace(/\/models\/?$/, "");
       cleanedUrl = cleanedUrl.replace(/\/+$/, "");
-      setCustomBaseUrl(cleanedUrl);
+      if (/experientiallabs\.ai/i.test(cleanedUrl) && !customAiKey.trim()) {
+        cleanedUrl = "";
+        setCustomBaseUrl("");
+        if (typeof window !== "undefined") localStorage.removeItem("custom_base_url");
+      } else {
+        setCustomBaseUrl(cleanedUrl);
+      }
 
       const res = await fetch("/api/test-connection", {
         method: "POST",
@@ -2811,7 +2825,7 @@ export default function Workspace() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   <div>
                     <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, marginBottom: 4 }}>
-                      1. Experiential Labs API Key (Claude, GPT-4.1, DeepSeek & GPT-6 Luna)
+                      1. Experiential Labs API Key (Claude, GPT-4.1, DeepSeek & GPT-6 Luna) <span style={{ color: "#10b981", fontSize: "11px" }}>★ Khuyên dùng</span>
                     </label>
                     <input
                       type="password"
@@ -2821,16 +2835,17 @@ export default function Workspace() {
                       style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
                     />
                     <small style={{ color: "var(--muted)", fontSize: "11px", display: "block", marginTop: 3 }}>
-                      Đang kích hoạt: Hỗ trợ mô hình <strong>gpt-6-luna-decisions</strong>, <strong>claude-haiku-4.5</strong>, <strong>deepseek-v4.1-flash</strong> và <strong>gpt-4.1-mini</strong>
+                      Đang kích hoạt: Hỗ trợ mô hình <strong>gpt-6-luna-decisions</strong>, <strong>claude-haiku-4.5</strong>, <strong>deepseek-v4.1-flash</strong> và <strong>gpt-4.1-mini</strong>.
+                      (Đã tích hợp sẵn endpoint mặc định <code>https://api.experientiallabs.ai/v1</code>, không cần nhập lại ở ô 3).
                     </small>
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, marginBottom: 4 }}>
-                      2. LarpRouter / Lutheos / OpenAI API Key (Tùy chọn)
+                      2. Khóa phụ: OpenAI / LarpRouter API Key (Tùy chọn - để trống nếu chỉ dùng Experiential Labs)
                     </label>
                     <input
                       type="password"
-                      placeholder="lrsk-... hoặc sk-..."
+                      placeholder="sk-... hoặc lrsk-... (để trống nếu không dùng thêm nguồn phụ)"
                       value={customAiKey}
                       onChange={(e) => setCustomAiKey(e.target.value)}
                       style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
@@ -2838,19 +2853,64 @@ export default function Workspace() {
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, marginBottom: 4 }}>
-                      3. Custom Base URL (Tùy chọn endpoint riêng)
+                      3. Custom Base URL phụ (Tùy chọn - để trống nếu chỉ dùng Experiential Labs)
                     </label>
                     <input
                       type="text"
-                      placeholder="https://api.experientiallabs.ai/v1 hoặc https://api.openai.com/v1"
+                      placeholder="https://api.openai.com/v1 (để trống nếu không dùng server riêng)"
                       value={customBaseUrl}
                       onChange={(e) => setCustomBaseUrl(e.target.value)}
                       style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontSize: "12px" }}
                     />
-                    <small style={{ color: "var(--muted)", fontSize: "11px", display: "block", marginTop: 3 }}>
-                      * Lưu ý: Chỉ nhập URL gốc (ví dụ: <code>https://api.experientiallabs.ai/v1</code>). Hệ thống tự động ghép endpoint phù hợp.
-                    </small>
+                    {/experientiallabs\.ai/i.test(customBaseUrl) ? (
+                      <div style={{ marginTop: 6, padding: "6px 10px", borderRadius: 6, background: "rgba(59, 130, 246, 0.12)", border: "1px solid rgba(59, 130, 246, 0.3)", color: "var(--ink)", fontSize: "11px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span>💡 Endpoint Experiential Labs đã có sẵn ở Mục 1. Bạn không cần điền ô 3.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomBaseUrl("");
+                            if (typeof window !== "undefined") localStorage.removeItem("custom_base_url");
+                          }}
+                          style={{ padding: "2px 8px", borderRadius: 4, background: "var(--surface)", border: "1px solid var(--line)", fontSize: "11px", cursor: "pointer", color: "var(--ink)" }}
+                        >
+                          Xóa ô này
+                        </button>
+                      </div>
+                    ) : (
+                      <small style={{ color: "var(--muted)", fontSize: "11px", display: "block", marginTop: 3 }}>
+                        * Chỉ nhập khi kết nối server bên thứ ba khác (ví dụ: OpenAI sk-..., OpenRouter, hoặc vLLM/Ollama).
+                      </small>
+                    )}
                   </div>
+
+                  {(customAiKey || customBaseUrl) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomAiKey("");
+                        setCustomBaseUrl("");
+                        if (typeof window !== "undefined") {
+                          localStorage.removeItem("custom_ai_key");
+                          localStorage.removeItem("custom_base_url");
+                        }
+                        setTestResults(null);
+                        setSaveSuccessNotice("Đã dọn sạch ô phụ, chỉ dùng nguồn Experiential Labs chất lượng cao!");
+                        setTimeout(() => setSaveSuccessNotice(""), 3500);
+                      }}
+                      style={{
+                        padding: "5px 10px",
+                        borderRadius: 6,
+                        background: "transparent",
+                        border: "1px dashed var(--line)",
+                        color: "var(--muted)",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      🧹 Chỉ dùng nguồn Experiential Labs (Xóa ô 2 & 3)
+                    </button>
+                  )}
 
                   {/* Nút bấm Lưu cấu hình và Kiểm tra kết nối */}
                   <div style={{ display: "flex", gap: "10px", marginTop: "4px", flexWrap: "wrap" }}>

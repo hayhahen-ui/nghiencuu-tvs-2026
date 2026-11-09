@@ -60,12 +60,17 @@ export async function POST(request: Request) {
     const customAiBase = request.headers.get("x-ai-base-url")?.trim();
     const customExpKey = request.headers.get("x-experiential-key")?.trim();
 
-    const expKey = customExpKey || process.env.EXPERIENTIAL_API_KEY || "xpl_403f9644e5ecda298ae346a48694448ec6c0d2a2";
-    const expBase = process.env.EXPERIENTIAL_BASE_URL || "https://api.experientiallabs.ai/v1";
+    const isExperiential = (url: string) => /experientiallabs\.ai/i.test(url);
 
-    const base = new URL(
-      customAiBase || process.env.AI_BASE_URL || "https://api.openai.com/v1",
-    );
+    const expKey = customExpKey || process.env.EXPERIENTIAL_API_KEY || "xpl_403f9644e5ecda298ae346a48694448ec6c0d2a2";
+    const expBase = (customAiBase && isExperiential(customAiBase))
+      ? customAiBase
+      : (process.env.EXPERIENTIAL_BASE_URL || "https://api.experientiallabs.ai/v1");
+
+    const secondaryBaseUrl = (customAiBase && !isExperiential(customAiBase))
+      ? customAiBase
+      : (process.env.AI_BASE_URL || "https://api.openai.com/v1");
+    const base = new URL(secondaryBaseUrl);
     if (base.protocol !== "https:")
       throw new Error("AI base URL requires HTTPS");
     const FREE_TIER_MODELS = ["deepseek-v4.1-flash", "claude-haiku-4.5", "gpt-4.1-mini", "glm-5.3-flash"];
@@ -227,7 +232,9 @@ MANDATORY LANGUAGE RULE (LANGUAGE: ENGLISH):
     }
 
     // 2. Dự phòng qua LarpRouter / Lutheos / Custom Base URL
-    if (!successfulData && process.env.AI_API_KEY) {
+    const hasSecondaryKey = Boolean(customAiKey || process.env.AI_API_KEY);
+    const secondaryKey = (customAiKey && !customAiKey.startsWith("xpl_")) ? customAiKey : process.env.AI_API_KEY;
+    if (!successfulData && hasSecondaryKey && secondaryKey && !isExperiential(base.host)) {
       const candidateModels: string[] = [requestedModel, "deepseek-v4.1-flash", "glm-5.3-flash"];
       for (const currentModel of candidateModels) {
         try {
@@ -237,7 +244,7 @@ MANDATORY LANGUAGE RULE (LANGUAGE: ENGLISH):
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${customAiKey || process.env.AI_API_KEY}`,
+                Authorization: `Bearer ${secondaryKey}`,
                 "User-Agent": "ResearchAgent/1.0 (Next.js; Vercel)",
               },
               body: JSON.stringify({

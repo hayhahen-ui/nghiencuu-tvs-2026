@@ -42,11 +42,15 @@ export async function POST(request: Request) {
       models?: string[];
     }> = [];
 
+    const isExperiential = (url: string) => /experientiallabs\.ai/i.test(url);
+
     // 1. Kiểm tra kết nối Experiential Labs
+    const expBase = (customBaseUrl && isExperiential(customBaseUrl)) ? customBaseUrl : "https://api.experientiallabs.ai/v1";
+
     if (expKey) {
       const start = Date.now();
       try {
-        const res = await fetch("https://api.experientiallabs.ai/v1/models", {
+        const res = await fetch(`${expBase.replace(/\/$/, "")}/models`, {
           headers: {
             Authorization: `Bearer ${expKey}`,
             "User-Agent": "ResearchAgent/1.0 (Connection Test)",
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
             provider: "Experiential Labs (Claude, DeepSeek, GPT-6 Luna)",
             status: "success",
             latencyMs: latency,
-            message: `Kết nối thành công (${latency}ms)! Khóa API hoạt động hoàn hảo.`,
+            message: `Kết nối thành công (${latency}ms)! Khóa API hoạt động hoàn hảo.${customBaseUrl && isExperiential(customBaseUrl) ? " (Đã kết nối qua endpoint Experiential Labs)" : ""}`,
             models: ["gpt-6-luna-decisions", "claude-haiku-4.5", "deepseek-v4.1-flash", "gpt-4.1-mini"],
           });
         } else {
@@ -81,43 +85,52 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Kiểm tra kết nối Custom Provider / LarpRouter / OpenAI
-    if (customAiKey || customBaseUrl) {
-      const targetBase = customBaseUrl || process.env.AI_BASE_URL || "https://api.openai.com/v1";
+    // 2. Kiểm tra kết nối Custom Provider phụ (LarpRouter / OpenAI / bên thứ 3)
+    // CHỈ kiểm tra nếu:
+    // - Người dùng nhập customAiKey (khác với expKey và không phải là key xpl_)
+    // - HOẶC người dùng nhập customBaseUrl riêng biệt (KHÔNG trỏ về experientiallabs.ai)
+    const hasDistinctCustomUrl = Boolean(customBaseUrl && !isExperiential(customBaseUrl));
+    const hasDistinctAiKey = Boolean(customAiKey && customAiKey !== expKey && !customAiKey.startsWith("xpl_"));
+
+    if (hasDistinctAiKey || hasDistinctCustomUrl) {
+      const targetBase = hasDistinctCustomUrl ? customBaseUrl : (process.env.AI_BASE_URL || "https://api.openai.com/v1");
       const targetKey = customAiKey || process.env.AI_API_KEY;
-      const start = Date.now();
-      try {
-        const res = await fetch(`${targetBase.replace(/\/$/, "")}/models`, {
-          headers: {
-            Authorization: `Bearer ${targetKey}`,
-            "User-Agent": "ResearchAgent/1.0 (Connection Test)",
-          },
-          signal: AbortSignal.timeout(15000),
-        });
-        const latency = Date.now() - start;
-        if (res.ok) {
-          results.push({
-            provider: customBaseUrl || "Custom Provider / LarpRouter",
-            status: "success",
-            latencyMs: latency,
-            message: `Kết nối thành công (${latency}ms)!`,
+
+      if (targetKey) {
+        const start = Date.now();
+        try {
+          const res = await fetch(`${targetBase.replace(/\/$/, "")}/models`, {
+            headers: {
+              Authorization: `Bearer ${targetKey}`,
+              "User-Agent": "ResearchAgent/1.0 (Connection Test)",
+            },
+            signal: AbortSignal.timeout(15000),
           });
-        } else {
-          const errText = await res.text().catch(() => "");
+          const latency = Date.now() - start;
+          if (res.ok) {
+            results.push({
+              provider: hasDistinctCustomUrl ? customBaseUrl : "Nguồn phụ (OpenAI / LarpRouter)",
+              status: "success",
+              latencyMs: latency,
+              message: `Kết nối thành công (${latency}ms)!`,
+            });
+          } else {
+            const errText = await res.text().catch(() => "");
+            results.push({
+              provider: hasDistinctCustomUrl ? customBaseUrl : "Nguồn phụ (OpenAI / LarpRouter)",
+              status: "error",
+              latencyMs: latency,
+              message: `Máy chủ trả mã lỗi ${res.status}: ${errText.slice(0, 150) || "Không xác thực được"}`,
+            });
+          }
+        } catch (err: any) {
           results.push({
-            provider: customBaseUrl || "Custom Provider / LarpRouter",
+            provider: hasDistinctCustomUrl ? customBaseUrl : "Nguồn phụ",
             status: "error",
-            latencyMs: latency,
-            message: `Máy chủ trả mã lỗi ${res.status}: ${errText.slice(0, 150) || "Không xác thực được"}`,
+            latencyMs: Date.now() - start,
+            message: `Lỗi kết nối tới ${targetBase}: ${err?.message || "Timeout"}`,
           });
         }
-      } catch (err: any) {
-        results.push({
-          provider: customBaseUrl || "Custom Provider",
-          status: "error",
-          latencyMs: Date.now() - start,
-          message: `Lỗi kết nối tới ${targetBase}: ${err?.message || "Timeout"}`,
-        });
       }
     }
 

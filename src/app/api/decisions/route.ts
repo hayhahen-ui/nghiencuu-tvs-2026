@@ -37,6 +37,7 @@ export async function POST(request: Request) {
   }
 
   const customExpKey = request.headers.get("x-experiential-key")?.trim();
+  const customAiBase = request.headers.get("x-ai-base-url")?.trim();
   const apiKey = customExpKey || process.env.EXPERIENTIAL_API_KEY || "xpl_403f9644e5ecda298ae346a48694448ec6c0d2a2";
   if (!apiKey) {
     return Response.json(
@@ -47,7 +48,10 @@ export async function POST(request: Request) {
 
   try {
     const body = decisionSchema.parse(await boundedJson(request, 300_000));
-    const baseUrl = process.env.EXPERIENTIAL_BASE_URL || "https://api.experientiallabs.ai/v1";
+    const isExperiential = (url: string) => /experientiallabs\.ai/i.test(url);
+    const baseUrl = (customAiBase && isExperiential(customAiBase))
+      ? customAiBase
+      : (process.env.EXPERIENTIAL_BASE_URL || "https://api.experientiallabs.ai/v1");
 
     let questions = body.questions;
     if (!questions || questions.length === 0) {
