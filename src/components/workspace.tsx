@@ -268,6 +268,7 @@ export default function Workspace() {
   const [chatBusy, setChatBusy] = useState(false);
   const [chatError, setChatError] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [isCustomModel, setIsCustomModel] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<"vi" | "en" | "zh">("vi");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [customExpKey, setCustomExpKey] = useState("");
@@ -431,16 +432,26 @@ export default function Workspace() {
       setStatus(data);
       if (data.aiModel) {
         setSelectedModel((prev) => {
-          if (!prev) return data.aiModel || "deepseek-v4.1-flash";
-          const currentInfo = data.availableModels?.find((m) => m.id === prev);
-          if (data.isFreeTier && currentInfo && currentInfo.tier === "paid") {
-            return data.aiModel || "deepseek-v4.1-flash";
-          }
+          if (!prev) return "gpt-6-luna";
           return prev;
         });
       }
     }
   };
+  useEffect(() => {
+    try {
+      const savedModel = localStorage.getItem("research_agent_model");
+      if (savedModel) setSelectedModel(savedModel);
+    } catch {}
+  }, []);
+
+  const handleSelectModel = (model: string) => {
+    setSelectedModel(model);
+    try {
+      localStorage.setItem("research_agent_model", model);
+    } catch {}
+  };
+
   useEffect(() => {
     try {
       const savedLang = localStorage.getItem("research_agent_language");
@@ -483,8 +494,7 @@ export default function Workspace() {
         setCurrentSessionId(latest.id);
         setChat(latest.messages);
         if (latest.model) {
-          const isKnownPaid = ["deepseek-v4.1-flash-fast", "gemini-3.8-flash-high", "claude-opus-4-6", "kimi-k2.6", "kimi-k3"].includes(latest.model);
-          setSelectedModel(isKnownPaid ? "deepseek-v4.1-flash" : latest.model);
+          setSelectedModel(latest.model);
         }
         if (latest.language) setSelectedLanguage(latest.language);
       }
@@ -503,8 +513,7 @@ export default function Workspace() {
     setCurrentSessionId(session.id);
     setChat(session.messages);
     if (session.model) {
-      const isKnownPaid = ["deepseek-v4.1-flash-fast", "gemini-3.8-flash-high", "claude-opus-4-6", "kimi-k2.6", "kimi-k3"].includes(session.model);
-      setSelectedModel(isKnownPaid ? "deepseek-v4.1-flash" : session.model);
+      setSelectedModel(session.model);
     }
     if (session.language) setSelectedLanguage(session.language);
     setShowHistoryModal(false);
@@ -1522,51 +1531,128 @@ export default function Workspace() {
                   <span>Mô hình AI:</span>
                 </div>
                 {status?.availableModels && status.availableModels.length > 0 ? (
-                  <select
-                    className="model-select"
-                    value={selectedModel || status?.aiModel || "deepseek-v4.1-flash"}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    aria-label="Chọn mô hình AI"
-                  >
-                    <optgroup label="✨ Mô hình Miễn phí (Free Tier - Khuyên dùng)">
-                      {status.availableModels
-                        .filter((m) => m.tier === "free")
-                        .map((m) => (
-                          <option key={m.id} value={m.id}>
-                            ★ {m.name} ({m.provider || "AI"})
-                          </option>
-                        ))}
-                    </optgroup>
-                    {status.availableModels.some((m) => m.tier !== "free") && (
-                      <optgroup label="💳 Mô hình Trả phí (Cần nạp credit LarpRouter)">
-                        {status.availableModels
-                          .filter((m) => m.tier !== "free")
-                          .map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name} [Cần credit] ({m.provider || "AI"})
-                            </option>
-                          ))}
-                      </optgroup>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    {!isCustomModel ? (
+                      <select
+                        className="model-select"
+                        value={status.availableModels.some((m) => m.id === selectedModel) ? selectedModel : (selectedModel ? "__custom__" : "gpt-6-luna")}
+                        onChange={(e) => {
+                          if (e.target.value === "__custom__") {
+                            setIsCustomModel(true);
+                          } else {
+                            handleSelectModel(e.target.value);
+                          }
+                        }}
+                        aria-label="Chọn mô hình AI"
+                      >
+                        {status.availableModels.some((m) => m.tier === "experiential") && (
+                          <optgroup label="⚡ Siêu mô hình Experiential Labs (Khuyên dùng)">
+                            {status.availableModels
+                              .filter((m) => m.tier === "experiential")
+                              .map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  ⚡ {m.name} ({m.provider})
+                                </option>
+                              ))}
+                          </optgroup>
+                        )}
+
+                        {status.availableModels.some((m) => m.tier === "free") && (
+                          <optgroup label="✨ Mô hình Phân tích & Tốc độ cao">
+                            {status.availableModels
+                              .filter((m) => m.tier === "free")
+                              .map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  ★ {m.name} ({m.provider})
+                                </option>
+                              ))}
+                          </optgroup>
+                        )}
+
+                        {status.availableModels.some((m) => m.tier === "paid") && (
+                          <optgroup label="💳 Nguồn phụ (LarpRouter)">
+                            {status.availableModels
+                              .filter((m) => m.tier === "paid")
+                              .map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} [LarpRouter] ({m.provider})
+                                </option>
+                              ))}
+                          </optgroup>
+                        )}
+
+                        <optgroup label="⚙️ Tùy chọn khác">
+                          <option value="__custom__">➕ Nhập Model ID khác từ Experiential Labs (hơn 300 models)...</option>
+                        </optgroup>
+                      </select>
+                    ) : (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <input
+                          type="text"
+                          placeholder="Nhập model ID (vd: gpt-6-astra, o3, deepseek-r1...)"
+                          value={selectedModel}
+                          onChange={(e) => handleSelectModel(e.target.value.trim())}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "1px solid var(--accent)",
+                            background: "var(--surface)",
+                            color: "var(--ink)",
+                            fontSize: "12px",
+                            minWidth: 240,
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="button secondary"
+                          onClick={() => setIsCustomModel(false)}
+                          style={{ padding: "4px 8px", fontSize: "11px", height: 32 }}
+                          title="Quay lại danh sách chọn"
+                        >
+                          Danh sách
+                        </button>
+                      </div>
                     )}
-                  </select>
+                  </div>
                 ) : (
                   <code className="active-model-name">
-                    {selectedModel || status?.aiModel || "deepseek-v4.1-flash"}
+                    {selectedModel || status?.aiModel || "gpt-6-luna"}
                   </code>
                 )}
-                {status?.isFreeTier && (
-                  <span className="free-tier-pill" title="Tài khoản LarpRouter Free Tier: 2 mô hình DeepSeek V4.1 Flash và GLM 5.3 Flash hoạt động 100% miễn phí">
-                    ★ Free Tier (DeepSeek & GLM)
-                  </span>
-                )}
-                {status?.availableModels?.find((m) => m.id === selectedModel)?.tier === "paid" && (
-                  <span className="paid-warning-pill" title="Mô hình này yêu cầu tài khoản trả phí có credit. Hệ thống sẽ tự động fallback sang DeepSeek V4.1 Flash nếu tài khoản chưa nạp credit.">
-                    ⚠️ Cần credit (Tự động fallback Free tier)
-                  </span>
-                )}
-                {status?.aiProvider && (
-                  <span className="provider-pill">Đấu nối: {status.aiProvider}</span>
-                )}
+
+                {/* Pill trạng thái của mô hình */}
+                {(() => {
+                  const currentM = status?.availableModels?.find((m) => m.id === selectedModel);
+                  if (currentM?.tier === "experiential" || isCustomModel) {
+                    return (
+                      <span className="free-tier-pill" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#10b981", borderColor: "#10b981" }} title="Mô hình chạy qua hạ tầng Experiential Cloud">
+                        ⚡ Experiential Cloud (Sẵn sàng)
+                      </span>
+                    );
+                  }
+                  if (currentM?.tier === "free") {
+                    return (
+                      <span className="free-tier-pill" title="Mô hình hoạt động miễn phí">
+                        ★ Sẵn sàng
+                      </span>
+                    );
+                  }
+                  if (currentM?.tier === "paid") {
+                    return (
+                      <span className="paid-warning-pill" title="Yêu cầu nạp credit LarpRouter">
+                        ⚠️ Cần credit LarpRouter
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="free-tier-pill" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#10b981", borderColor: "#10b981" }}>
+                      ⚡ Experiential Cloud (Sẵn sàng)
+                    </span>
+                  );
+                })()}
+
+                <span className="provider-pill">Đấu nối: Experiential Labs</span>
+
                 {status?.experiential?.configured && (
                   <span className="decision-pill" title="Mô hình OpenAI GPT-6 Luna Decisions đã sẵn sàng thẩm định xác suất">
                     ⚡ GPT-6 Luna Decisions
