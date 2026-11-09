@@ -2949,7 +2949,7 @@ export default function Workspace() {
             </div>
 
             <div className="document-footer" style={{ borderTop: "1px solid var(--line)", padding: "12px 20px" }}>
-              <span style={{ fontSize: "12px", color: "#64748b" }}>
+              <span style={{ fontSize: "12.5px", color: "var(--muted)" }}>
                 Dữ liệu nhật ký được lưu trữ an toàn trong IndexedDB của trình duyệt.
               </span>
               <div style={{ display: "flex", gap: "8px" }}>
