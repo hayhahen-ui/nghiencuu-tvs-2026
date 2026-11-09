@@ -2764,9 +2764,16 @@ export default function Workspace() {
                       {loginError}
                     </div>
                   )}
+                  {!status?.authConfigured && (
+                    <div className="notice danger" role="alert" style={{ marginTop: 8, fontSize: "11px", lineHeight: 1.5 }}>
+                      ⚠️ Máy chủ chưa nhận biến môi trường (cần <code>APP_PASSWORD</code> và <code>AUTH_SECRET</code>).
+                      Nếu anh vừa thêm trên Vercel, vui lòng vào tab <strong>Deployments</strong> và bấm <strong>Redeploy</strong>.
+                    </div>
+                  )}
                   <button
                     className="button primary full"
                     disabled={!status?.authConfigured || loginBusy}
+                    title={!status?.authConfigured ? "Cần cấu hình biến môi trường APP_PASSWORD và AUTH_SECRET trên máy chủ" : "Bấm để đăng nhập"}
                   >
                     {loginBusy ? (
                       <LoaderCircle className="spin" size={16} />
