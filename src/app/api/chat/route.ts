@@ -49,10 +49,13 @@ function isReasoningModel(modelId: string): boolean {
 /**
  * Determine output token ceiling per model.
  * Claude Fable 5.2 runs adaptive thinking at high effort (without custom temperature)
- * and consumes part of max_tokens for thinking, so it requires 16000 tokens.
+ * and consumes part of max_tokens for thinking. Ceiling kept at 8000 so a
+ * full answer stays inside the app's 90s primary timeout at ~125 tok/s
+ * (16000 tokens could need 128s+ of decode alone and always timed out
+ * on long questions) — trade-off: shorter answers for Fable, fewer fallbacks.
  */
 function maxTokensForModel(modelId: string): number {
-  if (modelId === "claude-fable-5.2") return 16000;
+  if (modelId === "claude-fable-5.2") return 8000;
   if (isReasoningModel(modelId)) return 12000;
   if (isFlagshipModel(modelId)) return 8000;
   return 6000;
