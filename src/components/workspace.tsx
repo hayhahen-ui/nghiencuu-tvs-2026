@@ -778,13 +778,31 @@ export default function Workspace() {
       if (customAiKey) headers["x-ai-key"] = customAiKey;
       if (customBaseUrl) headers["x-ai-base-url"] = customBaseUrl;
 
+      // Giới hạn tối đa 20 tin nhắn gần nhất và tổng 46.000 ký tự để luôn khớp schema máy chủ
+      const trimmedMessages = next
+        .slice(-20)
+        .map(({ role, content }) => ({ role, content: content.trim().slice(0, 24000) }))
+        .filter((m) => m.content.length > 0);
+      while (
+        trimmedMessages.length > 1 &&
+        trimmedMessages.reduce((sum, m) => sum + m.content.length, 0) > 46000
+      ) {
+        trimmedMessages.shift();
+      }
+      const knownSkillIds = catalog?.skills ? new Set(catalog.skills.map((s) => s.id)) : null;
+      const validSkills = knownSkillIds ? selected.filter((id) => knownSkillIds.has(id)) : selected;
+      const validModel =
+        selectedModel && selectedModel !== "__custom__"
+          ? selectedModel.trim().slice(0, 100) || undefined
+          : undefined;
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers,
         body: JSON.stringify({
-          messages: next.map(({ role, content }) => ({ role, content })),
-          skills: selected,
-          model: selectedModel || undefined,
+          messages: trimmedMessages,
+          skills: validSkills,
+          model: validModel,
           language: selectedLanguage,
           documents: selectDocumentEvidence(sourceDocuments.filter((document) => enabledDocuments.includes(document.id)), next.slice(-4).filter((message) => message.role === "user").map((message) => message.content).join("\n")),
         }),

@@ -76,3 +76,39 @@ test("PDF table text preserves row order and column boundaries", () => {
   const item = (str: string, x: number, y: number) => ({ str, transform: [1, 0, 0, 1, x, y], width: 40, height: 10 });
   assert.equal(pdfTextLines([item("7631-86-9", 120, 100), item("Kết thúc", 10, 60), item("CAS", 10, 100)]), "CAS\t7631-86-9\nKết thúc");
 });
+test("selectDocumentEvidence and createChatSchema sanitize OCR confidence, long metadata, and long replies", () => {
+  const dirtyOcrDoc: ResearchDocument = {
+    id: "a".repeat(32),
+    name: "Signed-MSDS-".repeat(40) + ".pdf",
+    format: "pdf",
+    size: 5000,
+    importedAt: "2026-11-10T00:00:00.000Z",
+    unitCount: 2,
+    processedCount: 2,
+    warnings: ["W".repeat(700)],
+    units: [
+      { id: "u1", locator: "Trang 1 " + "x".repeat(350), text: "CAS 7631-86-9 nội dung OCR", method: "ocr", confidence: -1 },
+      { id: "u2", locator: "Trang 2", text: "Thành phần 100%", method: "ocr", confidence: Number.NaN },
+    ],
+  };
+  const selected = selectDocumentEvidence([dirtyOcrDoc], "CAS 7631-86-9");
+  assert.equal(evidenceSchema.safeParse(selected).success, true);
+  assert.equal(selected[0].units[0].confidence, 0);
+  assert.equal(selected[0].units[1].confidence, undefined);
+  assert.equal(
+    evidenceSchema.safeParse(JSON.parse(JSON.stringify([{ ...selected[0], units: [{ ...selected[0].units[0], confidence: null }] }]))).success,
+    true,
+  );
+  const longAssistantReply = "Báo cáo phân tích chi tiết ".repeat(650); // > 12,000 chars
+  assert.equal(
+    createChatSchema([]).safeParse({
+      messages: [
+        { role: "user", content: "Phân tích SDS" },
+        { role: "assistant", content: longAssistantReply },
+        { role: "user", content: "Tóm tắt PPE" },
+      ],
+      documents: selected,
+    }).success,
+    true,
+  );
+});

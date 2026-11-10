@@ -6,7 +6,7 @@ export function createChatSchema(knownIds: string[]) {
   return z.object({
     messages: z.array(z.object({
       role: z.enum(["user", "assistant"]),
-      content: z.string().min(1).max(12000),
+      content: z.string().min(1).max(24000),
     })).min(1).max(20),
     skills: z.array(z.string().regex(/^[a-z0-9-]+$/).refine((id) => known.has(id)))
       .max(known.size).default([]).transform((ids) => [...new Set(ids)]),

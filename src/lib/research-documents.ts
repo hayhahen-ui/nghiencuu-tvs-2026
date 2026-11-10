@@ -39,7 +39,7 @@ const unitSchema = z.object({
   locator: z.string().min(1).max(300),
   text: z.string().max(6000),
   method: z.enum(["text", "ocr"]),
-  confidence: z.number().min(0).max(100).optional(),
+  confidence: z.number().min(0).max(100).nullish().transform((v) => (v ?? undefined)),
 });
 export const evidenceSchema = z.array(z.object({
   id: z.string().regex(/^[a-f0-9]{32}$/),
@@ -61,9 +61,16 @@ export const evidenceSchema = z.array(z.object({
     ctx.addIssue({ code: "custom", message: "Ngữ cảnh tài liệu vượt dung lượng cho phép." });
 });
 
+function sanitizeConfidence(confidence: unknown): number | undefined {
+  if (typeof confidence !== "number" || !Number.isFinite(confidence)) return undefined;
+  return Math.min(100, Math.max(0, confidence));
+}
+
 export function splitDocumentText(text: string, locator: string, method: DocumentUnit["method"] = "text", confidence?: number): Omit<DocumentUnit, "id">[] {
+  const safeConfidence = sanitizeConfidence(confidence);
+  const safeLocator = locator.slice(0, 300) || "Đoạn";
   const clean = text.replace(/\u0000/g, "").replace(/\r\n/g, "\n").trim();
-  if (!clean) return [{ locator, text: "", method, ...(confidence === undefined ? {} : { confidence }) }];
+  if (!clean) return [{ locator: safeLocator, text: "", method, ...(safeConfidence === undefined ? {} : { confidence: safeConfidence }) }];
   const parts: string[] = [];
   let remaining = clean;
   while (remaining.length > 6000) {
@@ -74,8 +81,8 @@ export function splitDocumentText(text: string, locator: string, method: Documen
   }
   if (remaining) parts.push(remaining);
   return parts.map((part, i) => ({
-    locator: locator + (parts.length > 1 ? ` · phần ${i + 1}/${parts.length}` : ""),
-    text: part, method, ...(confidence === undefined ? {} : { confidence }),
+    locator: (safeLocator + (parts.length > 1 ? ` · phần ${i + 1}/${parts.length}` : "")).slice(0, 300),
+    text: part, method, ...(safeConfidence === undefined ? {} : { confidence: safeConfidence }),
   }));
 }
 
@@ -114,10 +121,32 @@ export function selectDocumentEvidence(documents: ResearchDocument[], query: str
     if (best) take(best);
   }
   for (const entry of ranked.sort((a, b) => b.score - a.score || a.order - b.order)) take(entry);
-  return documents.map((doc) => ({
-    id: doc.id, name: doc.name, format: doc.format, totalUnits: doc.units.length,
-    warnings: doc.warnings.slice(0, 100), units: doc.units.filter((u) => selected.get(doc.id)?.has(u.id)),
-  })).filter((doc) => doc.units.length);
+  return documents.slice(0, MAX_DOCUMENTS).map((doc) => {
+    const safeUnits = doc.units
+      .filter((u) => selected.get(doc.id)?.has(u.id))
+      .slice(0, 3000)
+      .map((u) => {
+        const safeConfidence = sanitizeConfidence(u.confidence);
+        return {
+          id: u.id,
+          locator: (u.locator || "Đoạn").slice(0, 300),
+          text: (u.text || "").slice(0, 6000),
+          method: u.method === "ocr" ? ("ocr" as const) : ("text" as const),
+          ...(safeConfidence === undefined ? {} : { confidence: safeConfidence }),
+        };
+      });
+    return {
+      id: doc.id,
+      name: (doc.name || "Tài liệu").slice(0, 300),
+      format: doc.format,
+      totalUnits: Math.min(3000, Math.max(doc.units.length, safeUnits.length, 1)),
+      warnings: (Array.isArray(doc.warnings) ? doc.warnings : [])
+        .filter((w): w is string => typeof w === "string")
+        .slice(0, 100)
+        .map((w) => w.slice(0, 500)),
+      units: safeUnits,
+    };
+  }).filter((doc) => doc.units.length);
 }
 
 export function documentEvidenceContext(documents: EvidenceDocument[]): { text: string; info: EvidenceReceipt } {
