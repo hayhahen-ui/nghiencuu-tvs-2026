@@ -64,7 +64,7 @@ export async function POST(request: Request) {
             status: "success",
             latencyMs: latency,
             message: `Kết nối thành công (${latency}ms)! Khóa API hoạt động hoàn hảo.${customBaseUrl && isExperiential(customBaseUrl) ? " (Đã kết nối qua endpoint Experiential Labs)" : ""}`,
-            models: ["gpt-6-luna-decisions", "claude-haiku-4.5", "deepseek-v4.1-flash", "gpt-4.1-mini"],
+            models: ["claude-fable-5.2", "gpt-6-luna-decisions", "claude-haiku-4.5", "deepseek-v4.1-flash", "gpt-4.1-mini"],
           });
         } else {
           const errText = await res.text().catch(() => "");

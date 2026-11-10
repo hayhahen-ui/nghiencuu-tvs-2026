@@ -73,13 +73,19 @@ export async function POST(request: Request) {
     const base = new URL(secondaryBaseUrl);
     if (base.protocol !== "https:")
       throw new Error("AI base URL requires HTTPS");
-    const FREE_TIER_MODELS = ["deepseek-v4.1-flash", "claude-haiku-4.5", "gpt-4.1-mini", "glm-5.3-flash"];
+    const FREE_TIER_MODELS = ["claude-fable-5.2", "deepseek-v4.1-flash", "claude-haiku-4.5", "gpt-4.1-mini", "glm-5.3-flash"];
     const defaultModel = process.env.AI_MODEL || "deepseek-v4.1-flash";
     const requestedModel =
       input.model && /^[a-zA-Z0-9_.-]+$/.test(input.model)
         ? input.model
         : defaultModel;
     const userLang = input.language || "vi";
+
+    // Claude Fable 5.2 là reasoning model, adaptive thinking luôn bật
+    // (mặc định effort high) nên token suy luận ăn vào max_tokens — cho
+    // trần cao hơn để khỏi trả content rỗng rồi phải tổng hợp lại bằng Haiku.
+    // Không gửi temperature: Fable chỉ chấp nhận temperature = 1.
+    const chatMaxTokens = requestedModel === "claude-fable-5.2" ? 16000 : 6000;
 
     let langInstruction = "";
     if (userLang === "vi") {
@@ -164,7 +170,7 @@ MANDATORY LANGUAGE RULE (LANGUAGE: ENGLISH):
             body: JSON.stringify({
               model: expModel,
               messages: finalChatMessages,
-              max_tokens: 6000,
+              max_tokens: expModel === "claude-fable-5.2" ? chatMaxTokens : 6000,
             }),
             signal: AbortSignal.timeout(50000),
           });
@@ -280,7 +286,7 @@ MANDATORY LANGUAGE RULE (LANGUAGE: ENGLISH):
     if (!successfulData) {
       let friendlyError = `Nhà cung cấp AI (LarpRouter & Experiential Labs) trả lỗi ${lastErrorStatus || 502}. `;
       if (lastErrorStatus === 402) {
-        friendlyError += `Tài khoản đang ở chế độ Free tier ($0 credit). Vui lòng chọn mô hình miễn phí (DeepSeek V4.1 Flash hoặc GLM 5.3 Flash) hoặc nạp thêm credit tại https://larprouter.com/workspace-models.`;
+        friendlyError += `Tài khoản đang ở chế độ Free tier ($0 credit). Vui lòng chọn mô hình miễn phí (Claude Fable 5.2, DeepSeek V4.1 Flash hoặc GLM 5.3 Flash) hoặc nạp thêm credit tại https://larprouter.com/workspace-models.`;
       } else if (lastErrorStatus === 501 || lastErrorStatus === 502 || lastErrorStatus === 503) {
         friendlyError += `Dịch vụ tạm thời gián đoạn upstream (${lastErrorStatus}). Vui lòng thử lại sau vài giây hoặc kiểm tra hạn mức tại https://larprouter.com/workspace-models.`;
       } else {

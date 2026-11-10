@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", provider: "Experiential (DeepSeek)", tier: "experiential", isDefault: false, description: "DeepSeek V4 Pro - Nghiên cứu chuyên sâu" },
 
     // 2. Mô hình phân tích MSDS & Tốc độ cao
+    { id: "claude-fable-5.2", name: "Claude Fable 5.2 (FREE)", provider: "Experiential (Anthropic)", tier: "free", isDefault: false, description: "Anthropic Claude Fable 5.2 - Model mạnh nhất của Anthropic, free tier qua Experiential Cloud (ra mắt 09/11/2026, context 1M)" },
     { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", provider: "Experiential (DeepSeek)", tier: "free", isDefault: true, description: "DeepSeek V4.1 Flash - Chuyên gia đối chiếu MSDS hóa chất & an toàn" },
     { id: "claude-haiku-4.5", name: "Claude Haiku 4.5", provider: "Experiential (Anthropic)", tier: "free", isDefault: false, description: "Anthropic Claude Haiku 4.5 - Tốc độ tức thì, tiếng Việt chuẩn xác" },
     { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "Experiential (OpenAI)", tier: "free", isDefault: false, description: "OpenAI GPT-4.1 Mini - Phản hồi nhanh, tính toán nồng độ" },
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
       aiProvider,
       aiModel: process.env.AI_MODEL || "deepseek-v4.1-flash",
       isFreeTier: false,
-      freeTierModels: ["deepseek-v4.1-flash", "claude-haiku-4.5", "gpt-4.1-mini", "glm-5.3-flash"],
+      freeTierModels: ["claude-fable-5.2", "deepseek-v4.1-flash", "claude-haiku-4.5", "gpt-4.1-mini", "glm-5.3-flash"],
       availableModels,
       experiential: {
         configured: true,
