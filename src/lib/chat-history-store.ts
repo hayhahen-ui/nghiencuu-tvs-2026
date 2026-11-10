@@ -5,12 +5,21 @@
  */
 
 import type { EvidenceReceipt } from "./research-documents";
+import {
+  collectEvidenceDocumentList,
+  extractExecutiveSummary,
+  groupDialogueExchanges,
+  normalizeReportTitle,
+} from "./report-formatter";
 
 export type ChatMessageItem = {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
   evidence?: EvidenceReceipt;
+  model?: string;
+  requestedModel?: string;
+  fallbackApplied?: boolean;
 };
 
 export type ChatSession = {
@@ -163,28 +172,58 @@ export async function clearAllChatSessions(): Promise<void> {
 }
 
 /**
- * Xuất phiên hội thoại ra định dạng Markdown hoàn chỉnh kèm thời gian và nguồn dẫn.
+ * Xuất phiên hội thoại ra định dạng Báo cáo Khoa học Markdown chuẩn chỉnh,
+ * đã lọc JSON thô/thông báo hệ thống và gộp các lượt gửi lại do lỗi mạng.
  */
 export function exportSessionToMarkdown(session: ChatSession): string {
-  const lines: string[] = [];
-  lines.push(`# ${session.title || "Nhật ký hội thoại nghiên cứu"}`);
-  lines.push(`- **Thời gian tạo:** ${new Date(session.createdAt).toLocaleString("vi-VN")}`);
-  lines.push(`- **Cập nhật lần cuối:** ${new Date(session.updatedAt).toLocaleString("vi-VN")}`);
-  lines.push(`- **Mô hình AI:** \`${session.model}\``);
-  lines.push(`- **Ngôn ngữ phản hồi:** ${session.language === "vi" ? "Tiếng Việt" : session.language === "zh" ? "中文" : "English"}`);
-  if (session.documentNames && session.documentNames.length > 0) {
-    lines.push(`- **Tài liệu căn cứ:** ${session.documentNames.join(", ")}`);
-  }
-  lines.push("\n---\n");
+  const exchanges = groupDialogueExchanges(session.messages);
+  const cleanTitle = normalizeReportTitle(session.title);
+  const docs = collectEvidenceDocumentList(session, exchanges);
+  const summary = extractExecutiveSummary(exchanges);
 
-  for (const msg of session.messages) {
-    const roleTitle = msg.role === "user" ? "### 👤 Câu hỏi của bạn" : "### 🤖 Trợ lý Nghiên cứu (Research Agent)";
-    lines.push(roleTitle);
-    if (msg.timestamp) {
-      lines.push(`*(${new Date(msg.timestamp).toLocaleTimeString("vi-VN")})*\n`);
+  const lines: string[] = [];
+  lines.push(`# BÁO CÁO PHÂN TÍCH & THẨM ĐỊNH KHOA HỌC`);
+  lines.push(`**Đề tài:** ${cleanTitle}`);
+  lines.push("");
+  lines.push("| Thông số hồ sơ | Chi tiết |");
+  lines.push("| --- | --- |");
+  lines.push(`| Mã phiên lưu trữ | \`${session.id}\` |`);
+  lines.push(`| Thời gian tạo | ${new Date(session.createdAt).toLocaleString("vi-VN")} |`);
+  lines.push(`| Cập nhật lần cuối | ${new Date(session.updatedAt).toLocaleString("vi-VN")} |`);
+  lines.push(`| Mô hình AI xử lý | \`${session.model}\` |`);
+  lines.push(`| Ngôn ngữ báo cáo | ${session.language === "vi" ? "Tiếng Việt" : session.language === "zh" ? "中文" : "English"} |`);
+  lines.push(`| Tài liệu căn cứ | ${docs.length > 0 ? docs.join("; ") : "Không đính kèm tệp"} |`);
+  lines.push("");
+  lines.push("## I. TÓM TẮT ĐIỀU HÀNH & KẾT LUẬN CHÍNH");
+  lines.push("");
+  lines.push(summary);
+  lines.push("");
+  lines.push("## II. NỘI DUNG PHÂN TÍCH KHOA HỌC & KỸ THUẬT CHI TIẾT");
+  lines.push("");
+
+  for (const ex of exchanges) {
+    if (!ex.assistantContent && ex.userContent.length < 40) continue;
+    const uTime = ex.userTimestamp ? ` (${new Date(ex.userTimestamp).toLocaleTimeString("vi-VN")})` : "";
+    const aTime = ex.assistantTimestamp ? ` (${new Date(ex.assistantTimestamp).toLocaleTimeString("vi-VN")})` : "";
+    lines.push(`### Chuyên đề [${ex.index}]${uTime}`);
+    lines.push("");
+    lines.push(`> **Yêu cầu / Giả thuyết nghiên cứu:** ${ex.userContent}`);
+    lines.push("");
+    if (ex.assistantContent) {
+      if (ex.modelUsed) {
+        const switchInfo =
+          ex.fallbackApplied && ex.requestedModel && ex.requestedModel !== ex.modelUsed
+            ? ` (tự động chuyển từ \`${ex.requestedModel}\`)`
+            : "";
+        lines.push(`*Mô hình thực thi: \`${ex.modelUsed}\`${switchInfo}${aTime}*`);
+        lines.push("");
+      }
+      lines.push(ex.assistantContent);
+      lines.push("");
+    } else {
+      lines.push("*Chưa ghi nhận phản hồi hoàn chỉnh ở lượt truy vấn này.*");
+      lines.push("");
     }
-    lines.push(msg.content);
-    lines.push("\n");
   }
 
   return lines.join("\n");

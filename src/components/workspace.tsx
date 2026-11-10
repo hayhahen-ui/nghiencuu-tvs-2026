@@ -72,6 +72,7 @@ import {
   type ChatMessageItem,
 } from "@/lib/chat-history-store";
 import { selectDocumentEvidence, type StoredDocument, type EvidenceReceipt } from "@/lib/research-documents";
+import { cleanAssistantText, normalizeReportTitle, stripSystemPrefixes } from "@/lib/report-formatter";
 
 const scienceIcons: Record<string, typeof Microscope> = {
   flask: FlaskConical, dna: Dna, atom: Atom, earth: Earth, heart: HeartPulse,
@@ -538,18 +539,29 @@ export default function Workspace() {
 
   const [exportingDocx, setExportingDocx] = useState(false);
 
-  const handleExportWord = async (sessionToExport?: ChatSession) => {
-    const session = sessionToExport || historySessions.find((s) => s.id === currentSessionId) || {
+  const buildExportSession = (sessionToExport?: ChatSession): ChatSession => {
+    const existing = sessionToExport || historySessions.find((s) => s.id === currentSessionId);
+    const activeDocNames = sourceDocuments.filter((d) => enabledDocuments.includes(d.id)).map((d) => d.name);
+    if (existing) {
+      return {
+        ...existing,
+        documentNames: existing.documentNames?.length ? existing.documentNames : activeDocNames,
+      };
+    }
+    return {
       id: currentSessionId,
-      title: prompt.trim().slice(0, 50) || "Hội thoại nghiên cứu",
+      title: normalizeReportTitle(chat.find((m) => m.role === "user")?.content || prompt.trim() || "Hội thoại nghiên cứu"),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       model: selectedModel || status?.aiModel || "deepseek-v4.1-flash",
       language: selectedLanguage,
       messages: chat,
-      documentNames: sourceDocuments.filter((d) => enabledDocuments.includes(d.id)).map((d) => d.name),
+      documentNames: activeDocNames,
     };
+  };
 
+  const handleExportWord = async (sessionToExport?: ChatSession) => {
+    const session = buildExportSession(sessionToExport);
     if (!session.messages.length) return;
     setExportingDocx(true);
     try {
@@ -557,9 +569,10 @@ export default function Workspace() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const safeTitle = (session.title || "Bao_cao_nghien_cuu")
+      const safeTitle = normalizeReportTitle(session.title || "Bao_cao_nghien_cuu")
         .replace(/[^a-zA-Z0-9_\-\u00C0-\u1EF9]/g, "_")
-        .slice(0, 40);
+        .replace(/_+/g, "_")
+        .slice(0, 42);
       a.download = `BAO_CAO_NGHIEN_CUU_${safeTitle}.docx`;
       document.body.appendChild(a);
       a.click();
@@ -573,17 +586,7 @@ export default function Workspace() {
   };
 
   const handleExportPdf = (sessionToExport?: ChatSession) => {
-    const session = sessionToExport || historySessions.find((s) => s.id === currentSessionId) || {
-      id: currentSessionId,
-      title: prompt.trim().slice(0, 50) || "Hội thoại nghiên cứu",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      model: selectedModel || status?.aiModel || "deepseek-v4.1-flash",
-      language: selectedLanguage,
-      messages: chat,
-      documentNames: sourceDocuments.filter((d) => enabledDocuments.includes(d.id)).map((d) => d.name),
-    };
-
+    const session = buildExportSession(sessionToExport);
     if (!session.messages.length) return;
     openScientificPdfPrintView(session);
   };
@@ -810,9 +813,18 @@ export default function Workspace() {
       const data = await res.json();
       if (!res.ok) throw Error(data.error);
       const aiTime = new Date().toISOString();
+      const cleanedAnswer = cleanAssistantText(data.answer || "");
       const fullMessages: ChatMessageItem[] = [
         ...next,
-        { role: "assistant", content: data.answer, timestamp: aiTime, evidence: data.evidence },
+        {
+          role: "assistant",
+          content: cleanedAnswer,
+          timestamp: aiTime,
+          evidence: data.evidence,
+          model: data.model,
+          requestedModel: data.requestedModel,
+          fallbackApplied: data.fallbackApplied,
+        },
       ];
       setChat(fullMessages);
       setLastContext(data.context || null);
@@ -1747,24 +1759,41 @@ export default function Workspace() {
                         </div>
                       </div>
                     )}
-                    {chat.map((m, i) => (
-                      <article key={i} className={"message " + m.role}>
-                        <strong>
-                          {m.role === "user" ? "Bạn" : "Research Agent"}
-                        </strong>
-                        <Markdown text={m.content} openSource={(location) => {
-                          if (sourceDocuments.some((document) => document.id === location.documentId)) setSourceLocation(location);
-                          else setToast("Tài liệu nguồn đã được xóa hoặc không có trên trình duyệt này.");
-                        }} />
-                        {m.evidence && m.evidence.documents > 0 && <div className="answer-sources">
-                          <strong>Căn cứ đã gửi: {m.evidence.documents} file · {m.evidence.includedUnits}/{m.evidence.totalUnits} đoạn</strong>
-                          {m.evidence.sources.map((source) => <button className="text-button" key={source.id} onClick={() => {
-                            if (sourceDocuments.some((document) => document.id === source.id)) setSourceLocation({ documentId: source.id, unitId: source.units[0]?.id });
-                            else setToast("Tài liệu nguồn không còn trong thư viện của trình duyệt này.");
-                          }}>{source.name}</button>)}
-                        </div>}
-                      </article>
-                    ))}
+                    {chat.map((m, i) => {
+                      const parsedMsg = m.role === "assistant" ? stripSystemPrefixes(m.content) : null;
+                      const displayText = parsedMsg ? parsedMsg.text : m.content;
+                      const usedModel = m.model || parsedMsg?.switchedToModel;
+                      const origModel = m.requestedModel || parsedMsg?.switchedFromModel;
+                      const isSwitched = Boolean((m.fallbackApplied ?? Boolean(parsedMsg?.switchedToModel)) && usedModel && origModel && origModel !== usedModel);
+                      return (
+                        <article key={i} className={"message " + m.role}>
+                          <div className="message-header-row">
+                            <strong>
+                              {m.role === "user" ? "Nhà nghiên cứu" : "Trợ lý Khoa học (Research Agent)"}
+                            </strong>
+                            {m.role === "assistant" && usedModel && (
+                              <span
+                                className="model-attribution-pill"
+                                title={isSwitched ? `Tự động chuyển dự phòng từ ${origModel} sang ${usedModel}` : `Xử lý bởi mô hình ${usedModel}`}
+                              >
+                                {isSwitched ? `${usedModel} · chuyển từ ${origModel}` : usedModel}
+                              </span>
+                            )}
+                          </div>
+                          <Markdown text={displayText} openSource={(location) => {
+                            if (sourceDocuments.some((document) => document.id === location.documentId)) setSourceLocation(location);
+                            else setToast("Tài liệu nguồn đã được xóa hoặc không có trên trình duyệt này.");
+                          }} />
+                          {m.evidence && m.evidence.documents > 0 && <div className="answer-sources">
+                            <strong>Căn cứ đã đối chiếu: {m.evidence.documents} file · {m.evidence.includedUnits}/{m.evidence.totalUnits} đoạn</strong>
+                            {m.evidence.sources.map((source) => <button className="text-button" key={source.id} onClick={() => {
+                              if (sourceDocuments.some((document) => document.id === source.id)) setSourceLocation({ documentId: source.id, unitId: source.units[0]?.id });
+                              else setToast("Tài liệu nguồn không còn trong thư viện của trình duyệt này.");
+                            }}>{source.name}</button>)}
+                          </div>}
+                        </article>
+                      );
+                    })}
                     {chatBusy && (
                       <div className="thinking">
                         <LoaderCircle className="spin" size={17} />
