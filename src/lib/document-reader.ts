@@ -4,6 +4,12 @@ import type { Worker as OcrWorker } from "tesseract.js";
 export type ReadOptions = { ocrAllPages?: boolean; signal?: AbortSignal; onProgress?: (message: string) => void };
 type PdfTextItem = { str: string; transform: number[]; width: number; height: number };
 
+const IMAGE_FORMATS = ["jpg", "jpeg", "png", "webp", "bmp"] as const;
+type ImageFormat = (typeof IMAGE_FORMATS)[number];
+function isImageExtension(ext: string): ext is ImageFormat {
+  return (IMAGE_FORMATS as readonly string[]).includes(ext);
+}
+
 export function pdfTextLines(items: PdfTextItem[]) {
   const rows: { y: number; items: PdfTextItem[] }[] = [];
   for (const item of [...items].filter((i) => i.str?.trim()).sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4])) {
@@ -25,8 +31,8 @@ function checkAbort(options: ReadOptions) { options.signal?.throwIfAborted(); }
 export async function readResearchFile(file: File, options: ReadOptions = {}): Promise<ResearchDocument> {
   if (!file.size || file.size > MAX_DOCUMENT_BYTES) throw new Error("Mỗi file cần có dữ liệu và không vượt 30 MB.");
   const extension = file.name.split(".").pop()?.toLowerCase() as DocumentFormat;
-  if (!["pdf", "docx", "doc", "xlsx", "xls", "csv"].includes(extension))
-    throw new Error("Hỗ trợ PDF, Word DOC/DOCX, Excel XLS/XLSX và CSV.");
+  if (!["pdf", "docx", "doc", "xlsx", "xls", "csv", "jpg", "jpeg", "png", "webp", "bmp"].includes(extension))
+    throw new Error("Hỗ trợ PDF, Word DOC/DOCX, Excel XLS/XLSX, CSV và Ảnh chẩn đoán y tế JPG/PNG/WEBP/BMP.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   const id = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
@@ -132,7 +138,78 @@ export async function readResearchFile(file: File, options: ReadOptions = {}): P
       if (!response.ok) throw new Error(result.error || "Không đọc được DOC.");
       append(result.units); unitCount = result.unitCount; processedCount = result.unitCount;
       warnings.push(...result.warnings);
-    } else {
+    } else if (isImageExtension(extension)) {
+      unitCount = 1;
+      options.onProgress?.("Nạp hình ảnh chẩn đoán y tế…");
+      let canvas: HTMLCanvasElement | null = null;
+      let imgObjUrl = "";
+      try {
+        if (typeof document !== "undefined") {
+          canvas = document.createElement("canvas");
+          const img = new Image();
+          imgObjUrl = URL.createObjectURL(file);
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("Không thể nạp hình ảnh. Tệp có thể bị hỏng hoặc trình duyệt không hỗ trợ."));
+            img.src = imgObjUrl;
+          });
+
+          checkAbort(options);
+          const maxDim = 3200;
+          let w = img.naturalWidth || img.width;
+          let h = img.naturalHeight || img.height;
+          if (w > maxDim || h > maxDim) {
+            const ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) throw new Error("Không thể tạo bối cảnh vẽ ảnh canvas.");
+          ctx.drawImage(img, 0, 0, w, h);
+        }
+
+        options.onProgress?.("Nhận diện chữ & thông số chẩn đoán (OCR vie+eng)…");
+        const ocrTarget = canvas || file;
+        let result = await recognize(ocrTarget);
+
+        // Smart Rotation Fallback: nếu ảnh chụp bị xoay 90 độ (ít chữ hoặc độ tin cậy thấp)
+        if (canvas && typeof document !== "undefined" && (result.text.trim().length < 80 || result.confidence < 50)) {
+          options.onProgress?.("Thử tối ưu hóa góc xoay ảnh (90° / 270°)…");
+          const rotateCanvas = document.createElement("canvas");
+          rotateCanvas.width = canvas.height;
+          rotateCanvas.height = canvas.width;
+          const rCtx = rotateCanvas.getContext("2d");
+          if (rCtx) {
+            rCtx.translate(rotateCanvas.width / 2, rotateCanvas.height / 2);
+            rCtx.rotate((90 * Math.PI) / 180);
+            rCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+
+            try {
+              const rotResult = await recognize(rotateCanvas);
+              if (rotResult.text.trim().length > result.text.trim().length) {
+                result = rotResult;
+              }
+            } catch {}
+          }
+        }
+
+        if (result.text.trim()) {
+          append(splitDocumentText(result.text, "Ảnh chẩn đoán", "ocr", result.confidence));
+          if (result.confidence < 70) {
+            warnings.push(`Ảnh chẩn đoán: OCR độ tin cậy ${Math.round(result.confidence)}%; vui lòng đối chiếu số đo kích thước mm và kết luận với ảnh gốc.`);
+          }
+        } else {
+          append(splitDocumentText("", "Ảnh chẩn đoán (chưa nhận diện được chữ)"));
+          warnings.push("Không nhận diện được chữ trong ảnh. Vui lòng kiểm tra độ nét, ánh sáng hoặc chụp lại phiếu kết quả thẳng góc.");
+        }
+        processedCount = 1;
+      } finally {
+        if (imgObjUrl) URL.revokeObjectURL(imgObjUrl);
+        if (canvas) { canvas.width = 0; canvas.height = 0; }
+      }
+    } else if (extension === "docx" || extension === "xlsx" || extension === "xls" || extension === "csv") {
       const reader = await import("./office-reader");
       options.onProgress?.(extension === "docx" ? "Đọc nội dung, bảng, chú thích và đầu/chân trang…" : "Đọc toàn bộ sheet, ô dữ liệu và công thức…");
       const result = extension === "docx" ? reader.readDocx(bytes) : await reader.readSpreadsheet(bytes, extension);

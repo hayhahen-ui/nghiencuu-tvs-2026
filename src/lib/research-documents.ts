@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { analyzeMsds } from "./msds-analyzer";
+import { analyzeMedicalReport } from "./medical-analyzer";
 
 export const MAX_DOCUMENT_BYTES = 30 * 1024 * 1024;
 export const MAX_DOCUMENT_CHARS = 2_000_000;
 export const MAX_DOCUMENTS = 20;
 export const DOCUMENT_EVIDENCE_CHARS = 120_000;
-export type DocumentFormat = "pdf" | "docx" | "doc" | "xlsx" | "xls" | "csv";
+export type DocumentFormat = "pdf" | "docx" | "doc" | "xlsx" | "xls" | "csv" | "jpg" | "jpeg" | "png" | "webp" | "bmp";
 export type DocumentUnit = {
   id: string;
   locator: string;
@@ -44,7 +45,7 @@ const unitSchema = z.object({
 export const evidenceSchema = z.array(z.object({
   id: z.string().regex(/^[a-f0-9]{32}$/),
   name: z.string().min(1).max(300),
-  format: z.enum(["pdf", "docx", "doc", "xlsx", "xls", "csv"]),
+  format: z.enum(["pdf", "docx", "doc", "xlsx", "xls", "csv", "jpg", "jpeg", "png", "webp", "bmp"]),
   totalUnits: z.number().int().min(1).max(3000),
   warnings: z.array(z.string().max(500)).max(100),
   units: z.array(unitSchema).min(1).max(3000),
@@ -100,11 +101,13 @@ function normalize(value: string) {
 export function selectDocumentEvidence(documents: ResearchDocument[], query: string): EvidenceDocument[] {
   const tokens = [...new Set(normalize(query).match(/[a-z0-9][a-z0-9.-]{1,}/g) || [])];
   const isChem = /msds|sds|hoa chat|an toan|nguy hai|cas|un|doc tinh|chay|bao quan|so cuu|tuong ky|ppe/i.test(normalize(query));
+  const isMed = /sieu am|chan doan|y te|y hoc|benh nhan|tien liet|nang gan|hemangioma|than|soi|mat|tuy|lach|bang quang|echo|x-quang|mri|ct|xet nghiem|bac si/i.test(normalize(query));
   const ranked = documents.flatMap((doc) => doc.units.map((unit, order) => {
     const text = normalize(unit.text);
     const title = normalize(doc.name);
     const chemBonus = isChem && (/\b[1-9][0-9]{1,6}-\d{2}-\d\b/.test(unit.text) || /\b(ghs|h[2-4][0-9]{2}|p[1-5][0-9]{2})\b/i.test(unit.text)) ? 6 : 0;
-    const score = chemBonus + tokens.reduce((n, token) => n + (title.includes(token) ? 4 : 0) +
+    const medBonus = isMed && (/\b(sieu am|echo|nang gan|hemangioma|tien liet|vuc|mm|gram|soi|phong kham)\b/i.test(unit.text)) ? 6 : 0;
+    const score = chemBonus + medBonus + tokens.reduce((n, token) => n + (title.includes(token) ? 4 : 0) +
       Math.min(8, text.split(token).length - 1) * (/[0-9]/.test(token) ? 3 : 1), 0);
     return { doc, unit, order, score };
   }));
@@ -170,8 +173,26 @@ export function documentEvidenceContext(documents: EvidenceDocument[]): { text: 
       }
     } catch {}
 
+    let medicalSummary = "";
+    try {
+      const medAnalysis = analyzeMedicalReport({
+        id: doc.id,
+        name: doc.name,
+        format: doc.format,
+        size: 0,
+        importedAt: "",
+        unitCount: doc.totalUnits,
+        processedCount: doc.units.length,
+        units: doc.units,
+        warnings: doc.warnings,
+      });
+      if (medAnalysis.isMedicalReport) {
+        medicalSummary = `\n\n[DỮ LIỆU CHẨN ĐOÁN HÌNH ẢNH Y TẾ & KẾT QUẢ CẬN LÂM SÀNG ĐÃ TRÍCH XUẤT CHO NGHIÊN CỨU]:\n${medAnalysis.summaryText}`;
+      }
+    } catch {}
+
     return [
-      `TÀI LIỆU NGƯỜI DÙNG: ${JSON.stringify(doc.name)} · ${doc.units.length}/${doc.totalUnits} đoạn đã cung cấp.${msdsSummary}`,
+      `TÀI LIỆU NGƯỜI DÙNG: ${JSON.stringify(doc.name)} · ${doc.units.length}/${doc.totalUnits} đoạn đã cung cấp.${msdsSummary}${medicalSummary}`,
       ...(doc.warnings.length ? [`Lưu ý trích xuất: ${doc.warnings.join("; ")}`] : []),
       ...doc.units.map((unit) => `Nguồn: ${JSON.stringify(doc.name)} · ${unit.locator}${unit.method === "ocr" ? " (OCR, cần đối chiếu số liệu với bản gốc)" : ""}\nTrích dẫn bằng liên kết [tên file, ${unit.locator}](#source/${doc.id}/${unit.id})\n${unit.text || "[Trang/đoạn không có chữ trích xuất được]"}`),
     ].join("\n\n");

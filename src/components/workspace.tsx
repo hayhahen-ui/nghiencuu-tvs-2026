@@ -48,6 +48,8 @@ import {
   Printer,
   Sun,
   Moon,
+  Image as ImageIcon,
+  Stethoscope,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -1425,6 +1427,42 @@ export default function Workspace() {
                       Chọn toàn nhóm ({g.count})
                     </SkillSelectionCheckbox>
                   </div>
+                  {g.id === "medicine" && (
+                    <div style={{
+                      margin: "10px 0 16px",
+                      padding: "16px 20px",
+                      background: "linear-gradient(135deg, rgba(13, 148, 136, 0.12) 0%, rgba(20, 184, 166, 0.05) 100%)",
+                      border: "1px solid rgba(13, 148, 136, 0.3)",
+                      borderRadius: "12px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "12px",
+                    }}>
+                      <div style={{ maxWidth: "700px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#0d9488", fontWeight: 700, fontSize: "14px", marginBottom: "4px" }}>
+                          <Stethoscope size={18} />
+                          <span>Phân tích Hình ảnh Chẩn đoán Y tế (Siêu âm, X-quang, CT, MRI, Xét nghiệm)</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: "12.5px", color: "var(--ink)", lineHeight: 1.5 }}>
+                          Hệ thống tích hợp nhận diện OCR hình ảnh chẩn đoán y tế, tự động chuẩn hóa cấu trúc giải phẫu học, bóc tách thông số đo đạc tổn thương (nang gan, hemangioma, phì đại tuyến tiền liệt, sỏi thận...) và đối chiếu với các kỹ năng y học lâm sàng (<em>Clinical Decision-Support</em>, <em>Clinical Reports</em>, <em>Imaging Data Commons</em>).
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="button primary"
+                        style={{ background: "#0d9488", borderColor: "#0d9488", color: "#ffffff", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                        onClick={() => {
+                          const medicalSkills = catalog.skills.filter((s) => s.groupId === "medicine").map((s) => s.id);
+                          selectScope(medicalSkills, true);
+                          setTab("assistant");
+                        }}
+                      >
+                        <ImageIcon size={15} /> Tải ảnh chẩn đoán & Phân tích ngay
+                      </button>
+                    </div>
+                  )}
                   <div className="skills-grid">{filtered.filter((s) => s.groupId === g.id).map(skillCard)}</div>
                 </section>
               ))}

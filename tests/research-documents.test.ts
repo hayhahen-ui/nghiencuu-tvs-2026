@@ -112,3 +112,92 @@ test("selectDocumentEvidence and createChatSchema sanitize OCR confidence, long 
     true,
   );
 });
+
+test("evidenceSchema validates medical image formats and handles diagnostic scan evidence", () => {
+  for (const fmt of ["jpg", "jpeg", "png", "webp", "bmp"] as const) {
+    const doc = {
+      id: "b".repeat(32),
+      name: `Sieu_Am_Bung_${fmt}.${fmt}`,
+      format: fmt,
+      totalUnits: 1,
+      warnings: [],
+      units: [
+        {
+          id: "u1",
+          locator: "Ảnh chẩn đoán",
+          text: "KẾT QUẢ SIÊU ÂM\nBệnh nhân: CAO VĂN HỒNG\nNang gan phải kt 14.3 x 13.6 mm\nHemangioma gan phải kt 18.3 x 13.4 mm",
+          method: "ocr" as const,
+          confidence: 88,
+        },
+      ],
+    };
+    const parsed = evidenceSchema.safeParse([doc]);
+    assert.equal(parsed.success, true, `Format ${fmt} should be valid`);
+  }
+});
+
+test("analyzeMedicalReport extracts organs, measurements, conclusions and research recommendations from ultrasound OCR", async () => {
+  const { analyzeMedicalReport } = await import("../src/lib/medical-analyzer");
+  const ultrasoundDoc: ResearchDocument = {
+    id: "c".repeat(32),
+    name: "Ket_Qua_Sieu_Am_Sai_Gon_Medic.jpg",
+    format: "jpg",
+    size: 250000,
+    importedAt: "2026-11-16T09:00:00.000Z",
+    unitCount: 1,
+    processedCount: 1,
+    warnings: [],
+    units: [
+      {
+        id: "u1",
+        locator: "Ảnh chẩn đoán",
+        text: `PHÒNG KHÁM ĐA KHOA SÀI GÒN MEDIC-TN
+KẾT QUẢ SIÊU ÂM
+Họ tên: CAO VĂN HỒNG   Năm sinh: 1963   Giới tính: Nam
+Vùng Siêu Âm: Siêu âm Ổ Bụng (gan Mật, Tụy, Lách, Thận, Bàng Quang)
+- Gan: Gan phải có 01 cấu trúc echo trống, kt # 14.3 x 13.6 mm, trục ngang, bờ đều.
+Gan phải có 1 cấu trúc echo dày, bờ đều, không tăng sinh mạch máu bên trong và xung quanh, kt max # 18.3 x 13.4 mm.
+- Mật: Đường mật trong gan và ngoài gan không dãn. Túi mật: Không to, thành mỏng, không sỏi.
+- Tụy: Cấu trúc đồng nhất, không u, ống Wirsung không dãn.
+- Lách: Kích thước bình thường.
+- Thận: P: Không ứ nước, không có sỏi. T: Có cấu trúc echo dày có bóng lưng d=8 mm, không ứ nước.
+- Bàng quang: Thành không dày, không sỏi.
+- Tiền liệt tuyến: Không to, cấu trúc đồng nhất, có nốt vôi hóa, kt # 13 mm. Thể tích 37.11 gram.
+- Dạ dày chướng hơi.
+KẾT LUẬN:
+- NANG GAN PHẢI
+- HEMANGIOMA GAN PHẢI
+- NỐT VÔI HÓA TIỀN LIỆT TUYẾN
+- DẠ DÀY CHƯỚNG HƠI
+BS. TRẦN VĂN HỢP`,
+        method: "ocr",
+        confidence: 85,
+      },
+    ],
+  };
+
+  const analysis = analyzeMedicalReport(ultrasoundDoc);
+  assert.equal(analysis.isMedicalReport, true);
+  assert.equal(analysis.reportType, "ultrasound");
+  assert.equal(analysis.patient.fullName, "CAO VĂN HỒNG");
+  assert.equal(analysis.patient.birthYear, "1963");
+  assert.equal(analysis.patient.gender, "Nam");
+  assert.ok(analysis.patient.facilityName?.includes("SÀI GÒN MEDIC"));
+  assert.ok(analysis.patient.doctorName?.includes("TRẦN VĂN HỢP"));
+
+  // Conclusions
+  assert.ok(analysis.conclusions.some((c) => c.includes("NANG GAN")));
+  assert.ok(analysis.conclusions.some((c) => c.includes("HEMANGIOMA")));
+  assert.ok(analysis.conclusions.some((c) => c.includes("TIỀN LIỆT TUYẾN")));
+
+  // Research Recommendations
+  assert.ok(analysis.researchRecommendations.some((r) => r.includes("Nang gan đơn thuần")));
+  assert.ok(analysis.researchRecommendations.some((r) => r.includes("U máu gan")));
+  assert.ok(analysis.researchRecommendations.some((r) => /tiền liệt/i.test(r)));
+
+  // Context summary injection
+  const evidence = selectDocumentEvidence([ultrasoundDoc], "siêu âm");
+  const context = documentEvidenceContext(evidence);
+  assert.ok(context.text.includes("[DỮ LIỆU CHẨN ĐOÁN HÌNH ẢNH Y TẾ & KẾT QUẢ CẬN LÂM SÀNG ĐÃ TRÍCH XUẤT CHO NGHIÊN CỨU]"));
+  assert.ok(context.text.includes("CAO VĂN HỒNG"));
+});

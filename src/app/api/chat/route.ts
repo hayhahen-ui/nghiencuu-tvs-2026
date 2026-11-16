@@ -268,29 +268,39 @@ export async function POST(request: Request) {
 ================================================================================
 QUY TẮC BẮT BUỘC VỀ NGÔN NGỮ (LANGUAGE: TIẾNG VIỆT):
 - Bạn PHẢI trả lời HOÀN TOÀN BẰNG TIẾNG VIỆT (100%).
-- Mọi nội dung phân tích kỹ thuật, giải thích cơ chế hóa học, đánh giá an toàn, trang bị bảo hộ (PPE), khuyến cáo và kết luận BẮT BUỘC VIẾT BẰNG TIẾNG VIỆT học thuật chuẩn xác.
-- Dù tài liệu nguồn (SDS, MSDS, PDF, Word, Excel) hoặc tài liệu kỹ năng SKILL viết bằng tiếng Anh hay ngôn ngữ khác, bạn PHẢI dịch và diễn giải sang tiếng Việt tự nhiên, chuẩn thuật ngữ R&D.
-- Chỉ giữ nguyên ký hiệu quốc tế không dịch được: số CAS, số UN, công thức hóa học (H2SO4, MEK, IPA), mã nguy hại GHS (H225, H319, P210, P280), đơn vị đo (ppm, mg/m3, °C, mmHg, %).
+- Mọi nội dung phân tích kỹ thuật, giải thích cơ chế hóa học/sinh học, đánh giá an toàn, trang bị bảo hộ (PPE), khuyến cáo và kết luận BẮT BUỘC VIẾT BẰNG TIẾNG VIỆT học thuật chuẩn xác.
+- Dù tài liệu nguồn (SDS, MSDS, Phiếu siêu âm, Ảnh chẩn đoán, PDF, Word, Excel) hoặc tài liệu kỹ năng SKILL viết bằng tiếng Anh hay ngôn ngữ khác, bạn PHẢI dịch và diễn giải sang tiếng Việt tự nhiên, chuẩn thuật ngữ khoa học và y khoa.
+- Chỉ giữ nguyên ký hiệu quốc tế không dịch được: số CAS, số UN, công thức hóa học, mã GHS, đơn vị đo (mm, cm, gram, ppm, mg/m3, °C).
 - Trình bày trực tiếp bằng văn bản Markdown sạch sẽ; TUYỆT ĐỐI KHÔNG bọc câu trả lời trong JSON (như {"content": ...}) hay code block ngoài cùng.
 - Nếu sử dụng suy luận nội bộ, giữ suy nghĩ ngắn gọn (dưới 200 từ) và dành dung lượng để xuất báo cáo phân tích đầy đủ trực tiếp cho người dùng.
 ================================================================================`;
       reportFormatInstruction = `
 CẤU TRÚC BÁO CÁO KHOA HỌC CHUẨN MỰC (MARKDOWN):
-Với câu hỏi phân tích kỹ thuật, công thức hóa chất, hoặc đánh giá tài liệu SDS/MSDS, hãy tổ chức câu trả lời thành báo cáo R&D chuyên nghiệp theo các mục rõ ràng:
-## 1. Tóm tắt & Kết luận Thẩm định
-- Nêu rõ nhận định đánh giá ngay đầu bài (ví dụ: **Khả thi có điều kiện — Cần thử nghiệm đối chứng quy mô nhỏ**, **Chưa đủ căn cứ kết luận**, hoặc **Không khuyến nghị áp dụng ngay**) kèm 2–4 gạch đầu dòng tóm tắt lý do cốt lõi.
-## 2. Bảng Tổng hợp Thông số Kỹ thuật & Đối chiếu Nguồn
-- Lập bảng Markdown chuẩn (\`| Chỉ tiêu / Thành phần | Giá trị / Thông số | Tài liệu căn cứ |\`) đối chiếu các thông số có thực trong tài liệu (mã sản phẩm, CAS, tỷ lệ %, điểm chớp cháy, điểm sôi, áp suất hơi, mã GHS H/P, giới hạn phơi nhiễm TWA/STEL...).
-- Ô nào tài liệu không cung cấp phải ghi rõ \`Chưa có trong nguồn\`; tuyệt đối không tự điền hoặc suy đoán số liệu.
+
+[1. ĐỐI VỚI DỮ LIỆU CHẨN ĐOÁN HÌNH ẢNH Y TẾ & BÁO CÁO CẬN LÂM SÀNG (SIÊU ÂM, X-QUANG, CT, MRI, XÉT NGHIỆM)]:
+Hãy tổ chức câu trả lời thành Báo cáo Phân tích Y học & Chẩn đoán hình ảnh chuyên sâu:
+## 1. Tóm tắt Đánh giá Lâm sàng & Nhận định Tổng quan
+- Nêu rõ nhận định các tổn thương phát hiện chính (Nang gan, U máu Hemangioma, Phì đại tiền liệt tuyến, Sỏi thận...), phân loại tính chất lành tính hay nghi ngờ, và mức độ cần can thiệp/theo dõi.
+## 2. Bảng Đối chiếu Thông số Hình ảnh học & Cơ quan Khảo sát
+- Lập bảng Markdown chuẩn: \`| Cơ quan / Giải phẫu | Đặc điểm hình ảnh & Cấu trúc âm | Kích thước / Thông số đo | Đánh giá / Phân loại | Tài liệu căn cứ |\`
+- Trích xuất chính xác các số đo kích thước (mm, cm, gram thể tích), cấu trúc âm (echo trống, echo dày, bờ đều, bóng lưng, tăng âm sau...).
+## 3. Phân tích Cơ chế Bệnh học & Đặc điểm Hình ảnh Y khoa
+- Phân tích cơ chế bệnh sinh học & tiêu chuẩn chẩn đoán hình ảnh (theo các khuyến cáo ACR, EASL, AUA...): nang gan đơn thuần (echo trống, thành mỏng), u máu gan thể hang (echo dày, bờ rõ đều), phì đại lành tính tuyến tiền liệt (thể tích/trọng lượng, đối chiếu thang điểm IPSS, chỉ số PSA), sỏi thận (echo dày kèm bóng lưng sỏi). Phân tách rõ ràng giữa [Dữ liệu từ tài liệu nguồn] (kèm trích dẫn) và [Nhận định / Suy luận y học].
+## 4. Định hướng Theo dõi & Khuyến nghị Cận lâm sàng Nghiên cứu
+- Đề xuất lộ trình theo dõi định kỳ (siêu âm kiểm tra 6–12 tháng), các xét nghiệm bổ sung cần thiết (PSA, AFP, men gan, chức năng thận), và dấu hiệu cảnh báo cần thăm khám khẩn.
+## 5. Giới hạn Dữ liệu & Lưu ý Đối chiếu Ảnh gốc
+- Ghi rõ các giới hạn của hình ảnh siêu âm 2D (ví dụ phụ thuộc vào cửa sổ âm học, chướng hơi ruột), đối chiếu số liệu OCR với ảnh chụp gốc.
+## 6. Cảnh báo Y khoa Bắt buộc (Medical Research Disclaimer)
+- Ghi rõ: "Nội dung phân tích trên phục vụ mục đích nghiên cứu khoa học, đào tạo và đối chiếu học thuật; không thay thế chẩn đoán hay phác đồ điều trị trực tiếp của Bác sĩ chuyên khoa y tế."
+
+[2. ĐỐI VỚI CÂU HỎI HÓA CHẤT, SDS/MSDS, VẬT LIỆU VÀ CÔNG NGHỆ]:
+Tổ chức câu trả lời thành báo cáo R&D chuyên nghiệp:
+## 1. Tóm tắt & Kết luận Thẩm định (Khả thi có điều kiện, Chưa đủ căn cứ, hoặc Không khuyến nghị)
+## 2. Bảng Tổng hợp Thông số Kỹ thuật & Đối chiếu Nguồn (Bảng Markdown chuẩn)
 ## 3. Phân tích Cơ chế Khoa học & Tính Khả thi Quy trình
-- Phân tách rạch ròi giữa **[Dữ liệu từ nguồn]** (kèm liên kết trích dẫn \`[Tên file, Trang X](#source/id/đoạn)\`) và **[Nhận định / Suy luận khoa học]**.
 ## 4. Đánh giá An toàn Lao động (EHS), Độc tính & Bảo hộ (PPE)
-- So sánh mức độ phơi nhiễm trước/sau thay đổi, tương tác độc chất hoặc nguy cơ cháy nổ, yêu cầu thông gió và trang bị PPE cụ thể theo SDS.
 ## 5. Kế hoạch Thử nghiệm Kiểm chứng (Bench / Pilot Scale) & Khuyến nghị
-- Đề xuất bảng hoặc danh sách các bước kiểm nghiệm thực nghiệm, chỉ tiêu cần đo và tiêu chí chấp nhận (Acceptance Criteria) trước khi sản xuất đại trà.
-## 6. Giới hạn Dữ liệu & Lưu ý Đối chiếu Bản gốc
-- Ghi rõ các điểm dữ liệu thiếu (ví dụ SDS không thay thế TDS/hồ sơ tính năng công nghệ) hoặc cảnh báo đối chiếu bản gốc với phần chữ OCR.
-(Nếu người dùng chỉ hỏi khái niệm ngắn gọn không có dữ liệu đối chiếu, trình bày súc tích bằng các mục phù hợp nhưng vẫn giữ văn phong học thuật chặt chẽ.)`;
+## 6. Giới hạn Dữ liệu & Lưu ý Đối chiếu Bản gốc`;
     } else if (userLang === "en") {
       langInstruction = `
 ================================================================================
@@ -337,8 +347,15 @@ For technical evaluations, chemical formulation changes, or SDS/MSDS reviews, st
     const userMessages = normalizeConversationTurns(input.messages);
     const lastMsg = userMessages[userMessages.length - 1];
     if (lastMsg && lastMsg.role === "user") {
+      const isMedQuery =
+        /sieu am|chẩn đoán|kết quả|nang gan|hemangioma|tiền liệt|sỏi thận|y tế|bác sĩ|x-quang|mri|ct/i.test(lastMsg.content) ||
+        input.documents.some((d) => ["jpg", "jpeg", "png", "webp", "bmp"].includes(d.format) || /sieu am|chan doan|phieu/i.test(d.name));
       if (userLang === "vi") {
-        lastMsg.content = `${lastMsg.content}\n\n---\n[CHỈ DẪN TRÌNH BÀY]: Trả lời hoàn toàn 100% bằng TIẾNG VIỆT học thuật theo cấu trúc Báo cáo Khoa học Markdown (có kết luận thẩm định, bảng so sánh thông số từ tài liệu, dẫn nguồn trích xuất, đánh giá an toàn PPE và đề xuất thử nghiệm kiểm chứng). Xuất trực tiếp văn bản Markdown, không bọc JSON.`;
+        if (isMedQuery) {
+          lastMsg.content = `${lastMsg.content}\n\n---\n[CHỈ DẪN TRÌNH BÀY]: Trả lời hoàn toàn 100% bằng TIẾNG VIỆT học thuật theo cấu trúc Báo cáo Phân tích Y học & Chẩn đoán hình ảnh (Tóm tắt đánh giá lâm sàng, Bảng đối chiếu thông số đo đạc mm/gram và cơ quan, Phân tích cơ chế bệnh học lành tính/nguy cơ, Kế hoạch theo dõi cận lâm sàng nghiên cứu, và Cảnh báo y khoa bắt buộc). Xuất trực tiếp văn bản Markdown, không bọc JSON.`;
+        } else {
+          lastMsg.content = `${lastMsg.content}\n\n---\n[CHỈ DẪN TRÌNH BÀY]: Trả lời hoàn toàn 100% bằng TIẾNG VIỆT học thuật theo cấu trúc Báo cáo Khoa học Markdown (có kết luận thẩm định, bảng so sánh thông số từ tài liệu, dẫn nguồn trích xuất, đánh giá an toàn PPE và đề xuất thử nghiệm kiểm chứng). Xuất trực tiếp văn bản Markdown, không bọc JSON.`;
+        }
       } else if (userLang === "zh") {
         lastMsg.content = `${lastMsg.content}\n\n---\n[格式要求]: 请完全使用中文输出结构化科研分析报告（Markdown标题与对比表格），勿包裹JSON。`;
       } else {

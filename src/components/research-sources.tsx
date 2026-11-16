@@ -4,15 +4,20 @@ import {
   AlertCircle,
   CheckCircle2,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   FlaskConical,
+  HeartPulse,
+  Image as ImageIcon,
   LoaderCircle,
   Paperclip,
+  RotateCw,
   ScanLine,
   Search,
   ShieldAlert,
   ShieldCheck,
+  Stethoscope,
   Trash2,
   Upload,
   X,
@@ -26,6 +31,12 @@ import {
 } from "@/lib/document-store";
 import { MAX_DOCUMENTS, selectDocumentEvidence, type StoredDocument } from "@/lib/research-documents";
 import { analyzeMsds, GHS_SECTIONS_DEF, type MsdsAnalysisResult } from "@/lib/msds-analyzer";
+import { analyzeMedicalReport, type MedicalAnalysisResult } from "@/lib/medical-analyzer";
+
+export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "bmp"];
+export function isImageFormat(format?: string): boolean {
+  return !!format && IMAGE_EXTENSIONS.includes(format.toLowerCase());
+}
 
 export type SourceLocation = { documentId: string; unitId?: string };
 function sizeLabel(bytes: number) {
@@ -61,6 +72,7 @@ export default function ResearchSources({
   query: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const controller = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
@@ -94,6 +106,9 @@ export default function ResearchSources({
       if (msds.chemical.casNumbers.some((cas) => cas.toLowerCase().includes(q))) return true;
       if (msds.chemical.unNumbers.some((un) => un.toLowerCase().includes(q))) return true;
       if (msds.chemical.hazardCodes.some((h) => h.code.toLowerCase().includes(q))) return true;
+      const med = analyzeMedicalReport(doc);
+      if (med.patient.fullName?.toLowerCase().includes(q)) return true;
+      if (med.conclusions.some((c) => c.toLowerCase().includes(q))) return true;
       return false;
     });
   }, [documents, filterQuery]);
@@ -191,14 +206,68 @@ export default function ResearchSources({
     }
   };
 
+  const loadSampleMedicalImage = async () => {
+    if (busy) return;
+    const url = "/samples/Mau_Phieu_Sieu_Am_Bung_Tong_Quat.jpg";
+    const name = "Mau_Phieu_Sieu_Am_Bung_Tong_Quat.jpg";
+    try {
+      setProgress({ file: name, detail: "Đang tải ảnh mẫu phiếu siêu âm bụng từ máy chủ…" });
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Không thể tải ảnh mẫu. Vui lòng thử lại.");
+      const blob = await res.blob();
+      const file = new File([blob], name, { type: "image/jpeg" });
+      await importFiles([file]);
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : "Không thể nạp mẫu ảnh siêu âm."]);
+    }
+  };
+
+  const rotateAndReOcr = async (doc: StoredDocument) => {
+    if (busyRef.current) return;
+    try {
+      setProgress({ file: doc.name, detail: "Đang xoay ảnh 90° và OCR lại…" });
+      busyRef.current = true;
+      setBusy(true);
+      onBusy(true);
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(doc.original);
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Không thể nạp hình ảnh để xoay."));
+        img.src = objectUrl;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalHeight || img.height;
+      canvas.height = img.naturalWidth || img.width;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Không tạo được canvas xoay ảnh.");
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      URL.revokeObjectURL(objectUrl);
+
+      const rotatedBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
+      if (!rotatedBlob) throw new Error("Không thể tạo dữ liệu ảnh sau khi xoay.");
+      const rotatedFile = new File([rotatedBlob], doc.name, { type: "image/jpeg" });
+      await importFiles([rotatedFile]);
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : "Lỗi khi xoay ảnh và OCR lại."]);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+      onBusy(false);
+      setProgress(null);
+    }
+  };
+
   return (
-    <section className="research-sources" aria-label="Tài liệu nghiên cứu">
+    <section className="research-sources" aria-label="Tài liệu & Hình ảnh nghiên cứu">
       <div className="sources-heading">
         <div>
           <Paperclip size={21} />
           <div>
-            <h2>Tài liệu làm căn cứ nghiên cứu <span>{documents.length}</span></h2>
-            <p>Hỗ trợ SDS, MSDS Hóa chất, TDS, Word (.docx/.doc), Excel (.xlsx/.xls/.csv), PDF</p>
+            <h2>Tài liệu & Hình ảnh chẩn đoán y tế <span>{documents.length}</span></h2>
+            <p>Hỗ trợ Ảnh siêu âm/xét nghiệm (JPG/PNG/WEBP), SDS/MSDS Hóa chất, Word (.docx/.doc), Excel (.xlsx/.xls/.csv), PDF</p>
           </div>
         </div>
         <button className="text-button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
@@ -221,7 +290,7 @@ export default function ResearchSources({
                   type="button"
                   className="storage-action-btn"
                   onClick={() => exportDocumentsBackup(documents)}
-                  title="Sao lưu toàn bộ thư viện MSDS ra file .json để dự phòng hoặc chuyển sang máy khác"
+                  title="Sao lưu toàn bộ thư viện tài liệu ra file .json để dự phòng hoặc chuyển sang máy khác"
                 >
                   <Download size={13} /> Sao lưu ({documents.length})
                 </button>
@@ -229,7 +298,7 @@ export default function ResearchSources({
                   type="button"
                   className="storage-action-btn"
                   onClick={() => backupInput.current?.click()}
-                  title="Khôi phục thư viện MSDS từ file sao lưu .json"
+                  title="Khôi phục thư viện tài liệu từ file sao lưu .json"
                 >
                   <Upload size={13} /> Khôi phục
                 </button>
@@ -280,18 +349,48 @@ export default function ResearchSources({
           >
             <Upload size={26} />
             <div>
-              <strong>Kéo thả file vào đây hoặc chọn từ máy</strong>
-              <p>PDF · Word DOC/DOCX · Excel XLS/XLSX · CSV · Tối đa 30 MB/file</p>
+              <strong>Kéo thả tài liệu hoặc ảnh chẩn đoán vào đây (hoặc chọn từ máy)</strong>
+              <p>Ảnh siêu âm/xét nghiệm (JPG, PNG, WEBP, BMP) · PDF · Word · Excel · CSV · Tối đa 30 MB/file</p>
             </div>
-            <button className="button secondary" disabled={busy} onClick={() => input.current?.click()}>
-              <Paperclip size={16} />Chọn tài liệu
-            </button>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" }}>
+              <button
+                type="button"
+                className="button primary"
+                disabled={busy}
+                onClick={() => imageInput.current?.click()}
+                title="Tải ảnh siêu âm, X-quang, CT/MRI, phiếu xét nghiệm để hệ thống tự động OCR và phân tích"
+              >
+                <ImageIcon size={16} /> Tải ảnh chẩn đoán y tế
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => input.current?.click()}
+                title="Chọn tài liệu nghiên cứu PDF, Word DOC/DOCX, Excel XLS/XLSX, CSV"
+              >
+                <Paperclip size={16} /> Chọn tài liệu
+              </button>
+            </div>
+            <input
+              ref={imageInput}
+              className="visually-hidden"
+              type="file"
+              multiple
+              accept=".jpg,.jpeg,.png,.webp,.bmp,image/*"
+              aria-label="Tải ảnh chẩn đoán y tế"
+              onChange={(event) => {
+                const files = Array.from(event.target.files || []);
+                event.target.value = "";
+                void importFiles(files);
+              }}
+            />
             <input
               ref={input}
               className="visually-hidden"
               type="file"
               multiple
-              accept=".pdf,.docx,.doc,.xlsx,.xls,.csv"
+              accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.bmp,image/*"
               aria-label="Tải tài liệu nghiên cứu"
               onChange={(event) => {
                 const files = Array.from(event.target.files || []);
@@ -302,7 +401,17 @@ export default function ResearchSources({
           </div>
 
           <div className="source-sample-actions">
-            <span>Mẫu kiểm nghiệm nhanh chuẩn GHS:</span>
+            <span>Mẫu kiểm nghiệm nhanh:</span>
+            <button
+              type="button"
+              className="sample-pill-button"
+              style={{ borderColor: "#0d9488", color: "#0d9488" }}
+              disabled={busy}
+              onClick={() => void loadSampleMedicalImage()}
+              title="Nạp mẫu Phiếu Siêu âm Bụng Tổng quát (Nang gan, Hemangioma, Phì đại tiền liệt tuyến)"
+            >
+              <Stethoscope size={14} /> Nạp mẫu Phiếu Siêu âm Bụng (.jpg)
+            </button>
             <button
               type="button"
               className="sample-pill-button"
@@ -310,7 +419,7 @@ export default function ResearchSources({
               onClick={() => void loadSampleMsds("docx")}
               title="Nạp mẫu Phiếu an toàn hóa chất Ethanol 99.5% GHS chuẩn 16 phần (Word .docx)"
             >
-              <FlaskConical size={14} /> Nạp mẫu MSDS Ethanol 99.5% (Word .docx)
+              <FlaskConical size={14} /> Nạp mẫu MSDS Ethanol (Word)
             </button>
             <button
               type="button"
@@ -319,7 +428,7 @@ export default function ResearchSources({
               onClick={() => void loadSampleMsds("xlsx")}
               title="Nạp mẫu Danh mục Hóa chất & Chỉ tiêu an toàn SDS (Excel .xlsx)"
             >
-              <FileSpreadsheet size={14} /> Nạp mẫu Danh mục Hóa chất SDS (Excel .xlsx)
+              <FileSpreadsheet size={14} /> Nạp mẫu Danh mục Hóa chất (Excel)
             </button>
           </div>
 
@@ -389,6 +498,8 @@ export default function ResearchSources({
                   {filteredDocuments.map((doc) => {
                     const ocrPages = doc.units.filter((unit) => unit.method === "ocr").length;
                     const msds = analyzeMsds(doc);
+                    const med = analyzeMedicalReport(doc);
+                    const isImg = isImageFormat(doc.format);
 
                     return (
                       <article className="source-file-card" key={doc.id}>
@@ -403,7 +514,9 @@ export default function ResearchSources({
                               }
                               aria-label={"Dùng làm căn cứ: " + doc.name}
                             />
-                            {doc.format === "xls" || doc.format === "xlsx" || doc.format === "csv" ? (
+                            {isImg ? (
+                              <ImageIcon size={22} style={{ color: "#0d9488" }} />
+                            ) : doc.format === "xls" || doc.format === "xlsx" || doc.format === "csv" ? (
                               <FileSpreadsheet size={22} />
                             ) : (
                               <FileText size={22} />
@@ -412,7 +525,7 @@ export default function ResearchSources({
                               <strong>{doc.name}</strong>
                               <small>
                                 {doc.format.toUpperCase()} · {sizeLabel(doc.size)} · Đã xử lý {doc.processedCount}/{doc.unitCount}{" "}
-                                {doc.format === "pdf" ? "trang" : "phần"}
+                                {isImg ? "ảnh" : doc.format === "pdf" ? "trang" : "phần"}
                                 {ocrPages ? ` · ${ocrPages} đoạn OCR` : ""}
                                 {doc.importedAt ? ` · Lưu ngày: ${formatImportDate(doc.importedAt)}` : ""}
                               </small>
@@ -428,6 +541,20 @@ export default function ResearchSources({
                             <Trash2 size={16} />
                           </button>
                         </div>
+
+                    {med.isMedicalReport && (
+                      <div className="msds-badge-container" style={{ borderColor: "rgba(13, 148, 136, 0.3)" }}>
+                        <span className="msds-tag" style={{ background: "rgba(13, 148, 136, 0.15)", color: "#0d9488", borderColor: "#0d9488" }}>
+                          <Stethoscope size={12} /> {med.reportType === "ultrasound" ? "KẾT QUẢ SIÊU ÂM" : "CHẨN ĐOÁN HÌNH ẢNH"}
+                        </span>
+                        {med.patient.fullName && (
+                          <span className="msds-tag cas">BN: {med.patient.fullName}</span>
+                        )}
+                        {med.conclusions.slice(0, 3).map((c, i) => (
+                          <span key={i} className="msds-tag hazard">{c}</span>
+                        ))}
+                      </div>
+                    )}
 
                     {msds.isMsds && (
                       <div className="msds-badge-container">
@@ -450,8 +577,27 @@ export default function ResearchSources({
 
                     <div className="source-file-actions">
                       <button className="text-button" onClick={() => onView({ documentId: doc.id })}>
-                        {msds.isMsds ? "Tra cứu MSDS & nội dung" : "Kiểm tra nội dung đã đọc"}
+                        {med.isMedicalReport ? "🩺 Xem phân tích y khoa" : msds.isMsds ? "Tra cứu MSDS & nội dung" : "Kiểm tra nội dung đã đọc"}
                       </button>
+                      {isImg && (
+                        <>
+                          <button
+                            className="text-button"
+                            onClick={() => onView({ documentId: doc.id })}
+                            title="Xem ảnh chẩn đoán gốc đã upload"
+                          >
+                            <Eye size={12} /> Xem ảnh gốc
+                          </button>
+                          <button
+                            className="text-button"
+                            disabled={busy}
+                            onClick={() => void rotateAndReOcr(doc)}
+                            title="Xoay ảnh 90 độ theo chiều kim đồng hồ và nhận diện lại chữ"
+                          >
+                            <RotateCw size={12} /> Xoay 90° & OCR lại
+                          </button>
+                        </>
+                      )}
                       {doc.format === "pdf" && (
                         <button
                           className="text-button"
@@ -513,9 +659,26 @@ export function SourcePreview({
   const [unitId, setUnitId] = useState(location.unitId || document.units[0]?.id || "");
   const [search, setSearch] = useState("");
   const [showPage, setShowPage] = useState(false);
-  const [viewMode, setViewMode] = useState<"text" | "msds">("text");
 
   const msds = useMemo(() => analyzeMsds(document), [document]);
+  const med = useMemo(() => analyzeMedicalReport(document), [document]);
+  const isImg = isImageFormat(document.format);
+  const [imageUrl, setImageUrl] = useState<string>("");
+
+  const [viewMode, setViewMode] = useState<"text" | "msds" | "medical" | "image">(() => {
+    if (med.isMedicalReport) return "medical";
+    if (isImg) return "image";
+    if (msds.isMsds) return "msds";
+    return "text";
+  });
+
+  useEffect(() => {
+    if (isImg && document.original) {
+      const url = URL.createObjectURL(document.original);
+      setImageUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [isImg, document.original]);
 
   useEffect(() => {
     setUnitId(location.unitId || document.units[0]?.id || "");
@@ -573,8 +736,8 @@ export function SourcePreview({
             <h2 id="source-preview-title">{document.name}</h2>
             <span>
               Đã xử lý {document.processedCount}/{document.unitCount}{" "}
-              {document.format === "pdf" ? "trang" : "phần"} · {document.units.length} đoạn
-              {msds.isMsds ? " · Đã chuẩn hóa 16 mục GHS SDS" : ""}
+              {isImg ? "ảnh" : document.format === "pdf" ? "trang" : "phần"} · {document.units.length} đoạn
+              {med.isMedicalReport ? " · Đã trích xuất cấu trúc chẩn đoán y tế" : msds.isMsds ? " · Đã chuẩn hóa 16 mục GHS SDS" : ""}
             </span>
           </div>
           <button autoFocus className="icon-button" aria-label="Đóng nội dung tài liệu" onClick={onClose}>
@@ -582,24 +745,168 @@ export function SourcePreview({
           </button>
         </div>
 
-        {msds.isMsds && (
-          <div style={{ display: "flex", gap: "8px", padding: "10px 20px 0" }}>
+        <div style={{ display: "flex", gap: "8px", padding: "10px 20px 0", flexWrap: "wrap" }}>
+          {med.isMedicalReport && (
             <button
-              className={`msds-view-tab-btn ${viewMode === "text" ? "active" : ""}`}
-              onClick={() => setViewMode("text")}
+              className={`msds-view-tab-btn ${viewMode === "medical" ? "active" : ""}`}
+              onClick={() => setViewMode("medical")}
             >
-              <FileText size={14} /> Văn bản trích xuất gốc
+              <Stethoscope size={14} /> Chẩn đoán y khoa & Đối chiếu
             </button>
+          )}
+          {isImg && (
+            <button
+              className={`msds-view-tab-btn ${viewMode === "image" ? "active" : ""}`}
+              onClick={() => setViewMode("image")}
+            >
+              <ImageIcon size={14} /> Ảnh chẩn đoán gốc
+            </button>
+          )}
+          {msds.isMsds && (
             <button
               className={`msds-view-tab-btn ${viewMode === "msds" ? "active" : ""}`}
               onClick={() => setViewMode("msds")}
             >
               <ShieldAlert size={14} /> Bảng an toàn hóa chất GHS (16 mục chuẩn)
             </button>
-          </div>
-        )}
+          )}
+          <button
+            className={`msds-view-tab-btn ${viewMode === "text" ? "active" : ""}`}
+            onClick={() => setViewMode("text")}
+          >
+            <FileText size={14} /> Văn bản trích xuất OCR
+          </button>
+        </div>
 
-        {viewMode === "msds" && msds.isMsds ? (
+        {viewMode === "medical" && med.isMedicalReport ? (
+          <div className="source-preview-body" style={{ maxHeight: "65vh", overflowY: "auto" }}>
+            <div className="msds-executive-dashboard">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", color: "var(--ink)", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Stethoscope size={18} style={{ color: "#0d9488" }} />
+                    {med.reportType === "ultrasound" ? "KẾT QUẢ SIÊU ÂM CẬN LÂM SÀNG" : "KẾT QUẢ CHẨN ĐOÁN HÌNH ẢNH"}
+                  </h3>
+                  <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
+                    {med.patient.fullName && (
+                      <span className="msds-tag cas">BN: {med.patient.fullName}</span>
+                    )}
+                    {med.patient.birthYear && (
+                      <span className="msds-tag un">Năm sinh: {med.patient.birthYear}</span>
+                    )}
+                    {med.patient.gender && (
+                      <span className="msds-tag un">{med.patient.gender}</span>
+                    )}
+                    {med.patient.facilityName && (
+                      <span className="msds-tag" style={{ background: "rgba(13, 148, 136, 0.15)", color: "#0d9488" }}>
+                        {med.patient.facilityName}
+                      </span>
+                    )}
+                    {med.patient.doctorName && (
+                      <span className="msds-tag un">BS: {med.patient.doctorName}</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  Độ tin cậy trích xuất: <strong style={{ color: "#0d9488" }}>{med.confidenceScore}%</strong>
+                </div>
+              </div>
+
+              {med.conclusions.length > 0 && (
+                <div style={{ marginTop: "14px", background: "var(--surface)", padding: "12px", borderRadius: "6px", border: "1px solid var(--line)" }}>
+                  <strong style={{ fontSize: "12px", color: "#b91c1c", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <HeartPulse size={15} /> KẾT LUẬN CHẨN ĐOÁN HÌNH ẢNH HỌC:
+                  </strong>
+                  <ul style={{ margin: "8px 0 0", paddingLeft: "20px", fontSize: "13px", lineHeight: 1.6, fontWeight: 600, color: "var(--ink)" }}>
+                    {med.conclusions.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div style={{ marginTop: "14px" }}>
+                <strong style={{ fontSize: "12px", color: "var(--muted)", textTransform: "uppercase" }}>
+                  Bảng khảo sát giải phẫu & thông số đo đạc:
+                </strong>
+                <div style={{ overflowX: "auto", marginTop: "8px" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                    <thead>
+                      <tr style={{ background: "var(--surface)", borderBottom: "1px solid var(--line)", textAlign: "left" }}>
+                        <th style={{ padding: "8px 10px" }}>Cơ quan</th>
+                        <th style={{ padding: "8px 10px" }}>Kích thước / Đo đạc</th>
+                        <th style={{ padding: "8px 10px" }}>Đặc điểm âm học & Nhu mô</th>
+                        <th style={{ padding: "8px 10px" }}>Đánh giá</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(med.findings).map((f) => (
+                        <tr key={f.organ} style={{ borderBottom: "1px solid var(--line)" }}>
+                          <td style={{ padding: "8px 10px", fontWeight: 600 }}>{f.organVi}</td>
+                          <td style={{ padding: "8px 10px", color: f.measurements.length ? "#0d9488" : "var(--muted)", fontWeight: f.measurements.length ? 600 : 400 }}>
+                            {f.measurements.length ? f.measurements.join(", ") : "—"}
+                          </td>
+                          <td style={{ padding: "8px 10px" }}>{f.rawText}</td>
+                          <td style={{ padding: "8px 10px" }}>
+                            {f.normal ? (
+                              <span style={{ color: "#059669", fontWeight: 500 }}>Bình thường</span>
+                            ) : (
+                              <span style={{ color: "#b91c1c", fontWeight: 600 }}>Có ghi nhận</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {med.researchRecommendations.length > 0 && (
+                <div style={{ marginTop: "14px", background: "rgba(13, 148, 136, 0.08)", padding: "12px", borderRadius: "6px", border: "1px solid rgba(13, 148, 136, 0.25)" }}>
+                  <strong style={{ fontSize: "12px", color: "#0d9488", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "6px" }}>
+                    🔬 Đối chiếu y khoa & Định hướng nghiên cứu chuyên sâu:
+                  </strong>
+                  <div style={{ margin: "8px 0 0", fontSize: "12px", lineHeight: 1.6, color: "var(--ink)" }}>
+                    {med.researchRecommendations.map((rec, i) => (
+                      <p key={i} style={{ margin: "6px 0" }}>{rec}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: "12px", padding: "8px 12px", background: "var(--surface)", borderRadius: "6px", fontSize: "11px", color: "var(--muted)", border: "1px solid var(--line)" }}>
+                ⚠️ <strong>Lưu ý:</strong> Bảng phân tích phục vụ mục đích nghiên cứu y học, đào tạo và thẩm định dữ liệu cận lâm sàng; không thay thế chẩn đoán hoặc chỉ định trực tiếp từ Bác sĩ chuyên khoa y tế.
+              </div>
+            </div>
+          </div>
+        ) : viewMode === "image" && isImg ? (
+          <div className="source-preview-body" style={{ maxHeight: "65vh", overflowY: "auto", textAlign: "center", padding: "16px" }}>
+            <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+              <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                Định dạng ảnh: <strong>{document.format.toUpperCase()}</strong> · Dung lượng: {sizeLabel(document.size)} · Đã nhận diện OCR vie+eng
+              </span>
+              <button className="button secondary" style={{ fontSize: "12px", padding: "4px 10px" }} onClick={() => download(true)}>
+                <Download size={13} /> Tải ảnh gốc
+              </button>
+            </div>
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={document.name}
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "55vh",
+                  objectFit: "contain",
+                  borderRadius: "8px",
+                  border: "1px solid var(--line)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                }}
+              />
+            ) : (
+              <p>Đang chuẩn bị hiển thị hình ảnh…</p>
+            )}
+          </div>
+        ) : viewMode === "msds" && msds.isMsds ? (
           <div className="source-preview-body" style={{ maxHeight: "65vh", overflowY: "auto" }}>
             <div className="msds-executive-dashboard">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
